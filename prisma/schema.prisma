@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  TERMINATED
+}
+
+enum BackgroundCheckStatus {
+  REQUESTING
+  PENDING
+  CLEAR
+  FLAGGED
+  FAILED
+  UNKNOWN
+}
+
+enum AuditAction {
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  LOGOUT
+  EMPLOYEE_CREATED
+  PROFILE_UPDATED
+  EMPLOYEE_TERMINATED
+  BACKGROUND_CHECK_REQUESTED
+  BACKGROUND_CHECK_ABANDONED
+  EMPLOYEE_ACCOUNT_PROVISIONED
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  loginId      String     @unique
+  passwordHash String
+  role         Role
+  employeeId   String?    @unique @db.Uuid
+  employee     Employee?  @relation(fields: [employeeId], references: [id])
+  sessions     Session[]
+  auditLogs    AuditLog[] @relation("AuditActor")
+  requestedChecks BackgroundCheck[] @relation("CheckRequester")
+  profileChanges ProfileChange[] @relation("ProfileChangeActor")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Employee {
+  id               String         @id @default(uuid()) @db.Uuid
+  employeeId       String         @unique @default(dbgenerated("next_employee_id()"))
+  familyName       String
+  givenName        String
+  dateOfBirth      DateTime?      @db.Date
+  status           EmployeeStatus @default(ACTIVE)
+  terminatedAt     DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  user             User?
+  backgroundChecks BackgroundCheck[]
+  profileChanges   ProfileChange[]
+
+  @@index([status])
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model ProfileChange {
+  id               String   @id @default(uuid()) @db.Uuid
+  employeeRecordId String   @db.Uuid
+  employee         Employee @relation(fields: [employeeRecordId], references: [id])
+  actorUserId      String   @db.Uuid
+  actor             User     @relation("ProfileChangeActor", fields: [actorUserId], references: [id])
+  field             String
+  beforeValue       String?
+  afterValue        String?
+  createdAt         DateTime @default(now())
+
+  @@index([employeeRecordId, createdAt])
+}
+
+model BackgroundCheck {
+  id                   String                @id @default(uuid()) @db.Uuid
+  externalCheckId      String?               @unique
+  employeeRecordId     String                @db.Uuid
+  employee             Employee              @relation(fields: [employeeRecordId], references: [id])
+  requestedByUserId    String                @db.Uuid
+  requestedBy          User                  @relation("CheckRequester", fields: [requestedByUserId], references: [id])
+  idempotencyKey       String                @unique
+  activeSlot           String?
+  status               BackgroundCheckStatus @default(REQUESTING)
+  familyNameSnapshot   String
+  givenNameSnapshot    String
+  dateOfBirthSnapshot  DateTime              @db.Date
+  criminalRecord       Boolean?
+  educationVerified    Boolean?
+  employmentVerified   Boolean?
+  creditScore          String?
+  externalCreatedAt    DateTime?
+  externalCompletedAt  DateTime?
+  estimatedSeconds     Int?
+  failureCode          String?
+  failureMessage       String?
+  retentionUntil       DateTime?
+  resultPurgedAt       DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@unique([employeeRecordId, activeSlot])
+  @@index([employeeRecordId, createdAt])
+  @@index([status])
+  @@index([retentionUntil])
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @db.Uuid
+  actor       User?       @relation("AuditActor", fields: [actorUserId], references: [id])
+  action      AuditAction
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+}

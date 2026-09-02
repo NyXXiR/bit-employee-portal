@@ -1,0 +1,177 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * 디자인 토큰 — 방향 A "기록"
+ *
+ * 인사기록카드의 성격을 그대로 가져온다. 카드와 그림자로 덩어리를 나누는 대신
+ * 괘선으로만 구조를 만들고, 색은 동작(primary)과 상태(warning/destructive)에만 쓴다.
+ * 정보 자체는 흑백으로 읽혀야 한다.
+ *
+ * 화면 컴포넌트는 색을 직접 쓰지 않는다. 언제나 시맨틱 토큰만 참조하고,
+ * 실제 색값은 이 파일에서만 정의한다. 라이트/다크 두 벌을 유지하는 비용을
+ * 한 곳으로 모으기 위해서다.
+ */
+
+:root {
+  /* 3px. 각지게 두되 완전한 직각은 피해 입력 요소가 딱딱해 보이지 않게 한다. */
+  --radius: 0.1875rem;
+
+  /*
+   * 라틴 문자와 숫자(사번, 날짜)는 IBM Plex Sans로 통일하고, 한글은 시스템 폰트로
+   * 넘긴다. IBM Plex Sans KR의 한글 자소 전체를 웹폰트로 받으면 1MB를 훌쩍 넘고,
+   * 사내 포털에서 그 비용을 정당화하기 어렵다. 표에서 실제로 눈에 띄는 것은
+   * 사번과 날짜의 숫자꼴이므로 그쪽만 확보한다.
+   */
+  --font-sans: var(--font-plex-sans), "Pretendard Variable", Pretendard,
+    "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.2057 0.0073 229.27);
+
+  /* 카드가 바탕과 같은 흰색이다. 경계는 오직 괘선이 만든다. */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2057 0.0073 229.27);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2057 0.0073 229.27);
+
+  --primary: oklch(0.4148 0.0904 157.87);
+  --primary-foreground: oklch(0.985 0.005 158);
+
+  --secondary: oklch(0.955 0.0051 145.54);
+  --secondary-foreground: oklch(0.2057 0.0073 229.27);
+
+  --muted: oklch(0.9711 0.0034 145.55);
+  --muted-foreground: oklch(0.5263 0.0124 158.56);
+
+  --accent: oklch(0.955 0.0051 145.54);
+  --accent-foreground: oklch(0.4148 0.0904 157.87);
+
+  --destructive: oklch(0.4858 0.1576 25.26);
+  --destructive-foreground: oklch(0.985 0.005 25);
+
+  /*
+   * 상태 토큰. Background Check 결과와 프로필 완성도를 표현한다.
+   * shadcn 기본 팔레트에 warning/info가 없어 직접 정의한다.
+   */
+  --success: oklch(0.4148 0.0904 157.87);
+  --success-foreground: oklch(0.985 0.005 158);
+  --warning: oklch(0.4546 0.098 67.21);
+  --warning-foreground: oklch(0.99 0.012 67);
+  --info: oklch(0.4205 0.0969 251.63);
+  --info-foreground: oklch(0.985 0.008 251);
+
+  --border: oklch(0.9078 0.0076 151.88);
+  --input: oklch(0.9078 0.0076 151.88);
+  --ring: oklch(0.4148 0.0904 157.87);
+
+  /*
+   * 굵은 괘선. 표의 머리와 꼬리, 요약 수치의 윗선처럼 "여기가 한 덩어리의
+   * 시작과 끝"임을 알리는 자리에만 쓴다. 일반 구분선(--border)과 구별된다.
+   */
+  --rule: oklch(0.2057 0.0073 229.27);
+}
+
+.dark {
+  --background: oklch(0.183 0.0052 173.74);
+  --foreground: oklch(0.9331 0.0058 153.77);
+
+  --card: oklch(0.2171 0.0072 164.25);
+  --card-foreground: oklch(0.9331 0.0058 153.77);
+  --popover: oklch(0.2171 0.0072 164.25);
+  --popover-foreground: oklch(0.9331 0.0058 153.77);
+
+  --primary: oklch(0.6697 0.1004 158.53);
+  --primary-foreground: oklch(0.19 0.02 160);
+
+  --secondary: oklch(0.3019 0.011 156.51);
+  --secondary-foreground: oklch(0.9331 0.0058 153.77);
+
+  --muted: oklch(0.2609 0.0095 158);
+  --muted-foreground: oklch(0.6847 0.0117 158.71);
+
+  --accent: oklch(0.3019 0.011 156.51);
+  --accent-foreground: oklch(0.9331 0.0058 153.77);
+
+  --destructive: oklch(0.7214 0.1006 19.82);
+  --destructive-foreground: oklch(0.19 0.02 20);
+
+  --success: oklch(0.6697 0.1004 158.53);
+  --success-foreground: oklch(0.19 0.02 160);
+  --warning: oklch(0.7137 0.1206 81);
+  --warning-foreground: oklch(0.2 0.03 81);
+  --info: oklch(0.7407 0.0872 248.57);
+  --info-foreground: oklch(0.19 0.03 249);
+
+  --border: oklch(0.3019 0.011 156.51);
+  --input: oklch(0.3658 0.0147 153.18);
+  --ring: oklch(0.6697 0.1004 158.53);
+
+  /* 어두운 바탕에서는 굵은 괘선이 검정일 수 없다. 본문색을 그대로 쓴다. */
+  --rule: oklch(0.9331 0.0058 153.77);
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-rule: var(--rule);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans antialiased;
+  }
+
+  body {
+    @apply min-h-svh bg-background text-foreground;
+  }
+
+  /* 한글은 라틴 문자보다 시각적 행간이 좁게 느껴져 기본값을 조금 늘린다. */
+  body {
+    line-height: 1.6;
+  }
+}
