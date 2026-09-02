@@ -17,7 +17,17 @@ import { Input } from "@/components/ui/input";
  * 현재 필터는 prop으로 받아 다시 붙인다. useSearchParams를 쓰면 이 컴포넌트가
  * Suspense 경계를 요구하게 되는데, 지금 필요한 값은 두 개뿐이라 그럴 이유가 없다.
  */
-export function EmployeeSearch({ query, filter }: { query: string; filter?: string }) {
+export function EmployeeSearch({
+  query,
+  filter,
+  sort,
+  direction,
+}: {
+  query: string;
+  filter?: string;
+  sort?: string;
+  direction?: string;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(query);
 
@@ -27,15 +37,19 @@ export function EmployeeSearch({ query, filter }: { query: string; filter?: stri
     if (value.trim() === query) return;
 
     const timer = setTimeout(() => {
+      // 검색어만 바꾸고 나머지 목록 상태는 그대로 둔다. 쪽 번호는 일부러
+      // 빼서 1쪽으로 돌아가게 한다 — 결과 집합이 달라졌으니 쪽 번호는 무의미하다.
       const next = new URLSearchParams();
       if (filter) next.set("filter", filter);
       if (value.trim()) next.set("q", value.trim());
+      if (sort && sort !== "employeeId") next.set("sort", sort);
+      if (direction === "desc") next.set("dir", "desc");
       const qs = next.toString();
       router.replace(qs ? `/admin?${qs}` : "/admin", { scroll: false });
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [value, query, filter, router]);
+  }, [value, query, filter, sort, direction, router]);
 
   return (
     <div className="relative w-full max-w-xs">

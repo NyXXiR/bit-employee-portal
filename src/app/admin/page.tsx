@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeftIcon, ChevronRightIcon, SearchXIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  SearchXIcon,
+} from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { CreateEmployeeDialog } from "@/components/create-employee-dialog";
@@ -27,7 +34,12 @@ import { loginRedirectPath } from "@/lib/auth-redirect";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCurrentSession } from "@/server/auth";
-import { listEmployees, type EmployeeListFilter } from "@/server/employees";
+import {
+  listEmployees,
+  type EmployeeListFilter,
+  type EmployeeSortKey,
+  type SortDirection,
+} from "@/server/employees";
 import { listEmployeesQuerySchema } from "@/server/schemas";
 
 /**
@@ -40,15 +52,23 @@ import { listEmployeesQuerySchema } from "@/server/schemas";
 function buildHref({
   filter,
   query,
+  sort,
+  direction,
   page,
 }: {
   filter?: EmployeeListFilter;
   query?: string;
+  sort?: EmployeeSortKey;
+  direction?: SortDirection;
   page?: number;
 }) {
   const params = new URLSearchParams();
   if (filter) params.set("filter", filter);
   if (query) params.set("q", query);
+  // 기본 정렬은 주소에 남기지 않는다. 아무것도 고르지 않은 상태가 /admin이어야
+  // 필터 해제 링크나 브랜드 링크로 돌아왔을 때 상태가 깔끔하게 비워진다.
+  if (sort && sort !== "employeeId") params.set("sort", sort);
+  if (direction === "desc") params.set("dir", "desc");
   if (page && page > 1) params.set("page", String(page));
   const qs = params.toString();
   return qs ? `/admin?${qs}` : "/admin";
@@ -69,13 +89,35 @@ export default async function AdminPage({
    * 오류 화면으로 막을 이유가 없다.
    */
   const parsed = listEmployeesQuerySchema.safeParse(await searchParams);
-  const { filter, q: query, page: requestedPage } = parsed.success ? parsed.data : {};
-
-  const { employees, total, page, pageSize, totalPages, summary } = await listEmployees({
+  const {
     filter,
-    query,
+    q: query,
+    sort: parsedSort,
+    dir: parsedDir,
     page: requestedPage,
-  });
+  } = parsed.success ? parsed.data : {};
+
+  const { employees, total, page, pageSize, totalPages, sort, direction, summary } =
+    await listEmployees({
+      filter,
+      query,
+      sort: parsedSort,
+      direction: parsedDir,
+      page: requestedPage,
+    });
+
+  /*
+   * 정렬을 바꾸면 쪽 번호를 버린다. 순서가 달라지면 3쪽에 있던 직원이 1쪽으로
+   * 올 수 있어, 보고 있던 쪽 번호를 유지하는 것이 오히려 길을 잃게 만든다.
+   */
+  const sortHref = (key: EmployeeSortKey) =>
+    buildHref({
+      filter,
+      query,
+      sort: key,
+      // 같은 열을 다시 누르면 방향만 뒤집고, 다른 열로 옮기면 오름차순부터 시작한다.
+      direction: sort === key && direction === "asc" ? "desc" : "asc",
+    });
 
   const narrowed = filter !== undefined || query !== undefined;
   const start = (page - 1) * pageSize;
@@ -100,13 +142,18 @@ export default async function AdminPage({
         <Stat
           label="전체 직원"
           value={summary.total}
-          href={buildHref({ query })}
+          href={buildHref({ query, sort, direction })}
           active={filter === undefined}
         />
         <Stat
           label="재직 중"
           value={summary.active}
-          href={buildHref({ filter: filter === "active" ? undefined : "active", query })}
+          href={buildHref({
+            filter: filter === "active" ? undefined : "active",
+            query,
+            sort,
+            direction,
+          })}
           active={filter === "active"}
         />
         <Stat
@@ -115,6 +162,8 @@ export default async function AdminPage({
           href={buildHref({
             filter: filter === "incomplete" ? undefined : "incomplete",
             query,
+            sort,
+            direction,
           })}
           active={filter === "incomplete"}
           warn={summary.incomplete > 0}
@@ -132,7 +181,7 @@ export default async function AdminPage({
             ) : null}
           </h2>
           <div className="flex items-center gap-2">
-            <EmployeeSearch query={query ?? ""} filter={filter} />
+            <EmployeeSearch query={query ?? ""} filter={filter} sort={sort} direction={direction} />
             {narrowed ? (
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/admin">필터 해제</Link>
@@ -166,13 +215,43 @@ export default async function AdminPage({
                   * 눈이 가로로 크게 움직인다.
                   */}
                 <TableRow>
-                  <TableHead className="w-28">사번</TableHead>
-                  <TableHead className="w-28">성명</TableHead>
+                  <SortableHead
+                    label="사번"
+                    column="employeeId"
+                    sort={sort}
+                    direction={direction}
+                    href={sortHref("employeeId")}
+                    className="w-28"
+                  />
+                  <SortableHead
+                    label="성명"
+                    column="name"
+                    sort={sort}
+                    direction={direction}
+                    href={sortHref("name")}
+                    className="w-28"
+                  />
+                  {/* 로그인 아이디와 프로필은 정렬 기준으로 쓸 일이 없다.
+                      계정 아이디 순서는 의미가 없고, 프로필 완성도는 필터가 대신한다. */}
                   <TableHead className="w-40">로그인 아이디</TableHead>
-                  <TableHead className="w-40">생년월일</TableHead>
+                  <SortableHead
+                    label="생년월일"
+                    column="dateOfBirth"
+                    sort={sort}
+                    direction={direction}
+                    href={sortHref("dateOfBirth")}
+                    className="w-40"
+                  />
                   <TableHead className="w-24">프로필</TableHead>
                   {/* 너비를 주지 않아 남는 폭을 흡수한다. 빈 공간이 맨 오른쪽에 모인다. */}
-                  <TableHead className="text-right">재직 상태</TableHead>
+                  <SortableHead
+                    label="재직 상태"
+                    column="status"
+                    sort={sort}
+                    direction={direction}
+                    href={sortHref("status")}
+                    align="right"
+                  />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -230,12 +309,65 @@ export default async function AdminPage({
               total={total}
               page={page}
               totalPages={totalPages}
-              hrefFor={(target) => buildHref({ filter, query, page: target })}
+              hrefFor={(target) => buildHref({ filter, query, sort, direction, page: target })}
             />
           </>
         )}
       </section>
     </AppShell>
+  );
+}
+
+/**
+ * 눌러서 정렬하는 표 머리.
+ *
+ * 현재 정렬 중인 열만 방향 화살표를 진하게 보여주고, 나머지는 흐린 양방향
+ * 아이콘을 항상 띄운다. 호버에만 나타나게 하면 터치 기기에서는 정렬할 수 있다는
+ * 사실 자체가 드러나지 않는다.
+ */
+function SortableHead({
+  label,
+  column,
+  sort,
+  direction,
+  href,
+  className,
+  align = "left",
+}: {
+  label: string;
+  column: EmployeeSortKey;
+  sort: EmployeeSortKey;
+  direction: SortDirection;
+  href: string;
+  className?: string;
+  align?: "left" | "right";
+}) {
+  const active = sort === column;
+
+  return (
+    <TableHead
+      className={cn(align === "right" && "text-right", className)}
+      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <Link
+        href={href}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        {active ? (
+          direction === "asc" ? (
+            <ArrowUpIcon className="size-3" />
+          ) : (
+            <ArrowDownIcon className="size-3" />
+          )
+        ) : (
+          <ChevronsUpDownIcon className="size-3 opacity-40" />
+        )}
+      </Link>
+    </TableHead>
   );
 }
 

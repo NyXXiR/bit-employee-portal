@@ -67,7 +67,29 @@ export function ProfileForm({
 
   return (
     <form onSubmit={submit} className="grid gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/*
+        * 사번과 로그인 아이디는 바꿀 수 없는 값이다. 비활성 입력 상자로 두면
+        * "지금은 못 고치지만 고칠 수 있는 값"처럼 보이는 데다, 브라우저가 선택을
+        * 막아 직원에게 전달할 아이디를 복사할 수도 없다. 읽는 값이므로 목록으로 적는다.
+        */}
+      <dl className="grid grid-cols-[minmax(5.5rem,auto)_1fr] gap-x-4 gap-y-1.5 border-b pb-4 text-sm">
+        <dt className="text-muted-foreground">사번</dt>
+        <dd className="font-mono">{employee.employeeId}</dd>
+        {admin ? (
+          <>
+            <dt className="text-muted-foreground">로그인 아이디</dt>
+            <dd className={employee.loginId ? "font-mono" : "text-muted-foreground"}>
+              {employee.loginId ?? "계정 미발급"}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+
+      {/*
+        * items-start가 없으면 그리드 항목이 줄 높이만큼 늘어나, 힌트가 있는 칸과
+        * 없는 칸의 입력 상자가 서로 다른 높이에 놓인다.
+        */}
+      <div className="grid items-start gap-4 sm:grid-cols-2">
         <FormField id="familyName" label="성" required hint="복성은 두 글자 그대로 입력합니다.">
           <Input
             id="familyName"
@@ -103,21 +125,6 @@ export function ProfileForm({
             disabled={readOnly}
           />
         </FormField>
-
-        <FormField id="employeeId" label="사번" hint="사번은 변경할 수 없습니다.">
-          <Input id="employeeId" value={employee.employeeId} disabled className="font-mono" />
-        </FormField>
-
-        {admin ? (
-          <FormField id="accountLoginId" label="로그인 아이디" hint="직원에게 전달할 계정 아이디입니다.">
-            <Input
-              id="accountLoginId"
-              value={employee.loginId ?? "계정 미발급"}
-              disabled
-              className="font-mono"
-            />
-          </FormField>
-        ) : null}
       </div>
 
       <FormError message={error} />
