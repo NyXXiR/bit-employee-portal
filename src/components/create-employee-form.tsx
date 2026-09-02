@@ -49,12 +49,15 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
   return (
     <form onSubmit={submit} className="grid gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormField id="newLoginId" label="로그인 아이디" required hint="3자 이상">
-          <Input id="newLoginId" name="loginId" minLength={3} required autoComplete="off" />
-        </FormField>
-
-        <FormField id="newFamilyName" label="성" required>
+      {/*
+        * items-start가 없으면 그리드 항목이 줄 높이만큼 늘어나, 힌트가 있는 칸과
+        * 없는 칸의 입력 상자가 서로 다른 높이에 놓인다.
+        *
+        * 순서는 "사람 먼저, 계정 나중"이다. 성과 이름은 반드시 같은 줄에 둔다 —
+        * 한 사람의 이름을 두 줄에 나눠 입력하게 만들 이유가 없다.
+        */}
+      <div className="grid items-start gap-4 sm:grid-cols-2">
+        <FormField id="newFamilyName" label="성" required hint="복성은 두 글자 그대로 입력합니다.">
           <Input id="newFamilyName" name="familyName" required />
         </FormField>
 
@@ -70,11 +73,17 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
           <Input id="newDateOfBirth" name="dateOfBirth" type="date" />
         </FormField>
 
+        <FormField id="newLoginId" label="로그인 아이디" required hint="3자 이상">
+          <Input id="newLoginId" name="loginId" minLength={3} required autoComplete="off" />
+        </FormField>
+
+        {/* 힌트가 길어 한 줄에 담기지 않으므로 폭 전체를 쓴다. */}
         <FormField
           id="newPassword"
           label="초기 비밀번호"
           required
           hint="10자 이상 · 직원에게 그대로 전달되므로 눈으로 확인해 주세요"
+          className="sm:col-span-2"
         >
           <PasswordInput
             id="newPassword"
