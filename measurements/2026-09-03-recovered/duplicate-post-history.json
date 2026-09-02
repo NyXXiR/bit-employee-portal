@@ -1,0 +1,12 @@
+{
+  "employeeId": "MEASURE-EMP-001",
+  "totalCount": 5,
+  "observation": "Five repeated POST requests produced five distinct checkId values; the API did not deduplicate by employeeId.",
+  "checks": [
+    {"checkId":"CHK-78b6615c-c815-4863-9da0-4c654e36945a","status":"flagged","createdAt":"2026-09-02T16:33:34.432Z","completedAt":"2026-09-02T16:33:34.432Z"},
+    {"checkId":"CHK-7b0c1c17-657c-4d7c-a5d0-4f366d1419b1","status":"flagged","createdAt":"2026-09-02T16:33:34.230Z","completedAt":"2026-09-02T16:34:29.552Z"},
+    {"checkId":"CHK-626cc8fc-27f4-4583-b910-0d38ad840424","status":"flagged","createdAt":"2026-09-02T16:33:35.934Z","completedAt":"2026-09-02T16:33:35.934Z"},
+    {"checkId":"CHK-bbd79b63-fbff-46f1-9c4f-dfc6552a6a3e","status":"flagged","createdAt":"2026-09-02T16:33:34.990Z","completedAt":"2026-09-02T16:33:34.990Z"},
+    {"checkId":"CHK-2e520d1d-08fb-4367-bfef-924b1ffba222","status":"flagged","createdAt":"2026-09-02T16:33:36.091Z","completedAt":"2026-09-02T16:35:40.754Z"}
+  ]
+}

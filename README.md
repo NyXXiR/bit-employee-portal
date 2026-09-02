@@ -1,0 +1,44 @@
+# Internal Employee Portal
+
+비트컴퓨터 개발자 채용 과제를 위한 사내 직원 관리 웹 애플리케이션 프로젝트입니다.
+
+Node.js 20.9.0과 Next.js 16 기반의 단일 애플리케이션입니다. 화면과 서버를 별도 배포하지
+않고, UI·HTTP·도메인·데이터 계층을 코드 구조로 분리합니다.
+
+- [핵심 방향성](docs/PROJECT_DIRECTION.md)
+- [설계 결정 대장](docs/DECISION_LOG.md)
+- [AI 협업 기록](AI_LOG.md)
+
+## 개발 환경
+
+DB 접속 정보는 루트 `.env`에 입력합니다. 이 프로젝트 전용 데이터베이스
+`bit_employee_portal`의 `public` 스키마를 사용합니다.
+
+```bash
+npm install
+npm run db:migrate -- --name init
+npm run db:seed
+npm run dev
+```
+
+시드 로그인 아이디 환경변수는 필수입니다. 관리자 계정과 `EMP-001` 직원 계정이 존재하지 않을
+때만 비밀번호 환경변수를 읽으며 placeholder 비밀번호는 거부합니다. 시드를 다시 실행해도 기존
+비밀번호, 역할, 직원 연결을 덮어쓰지 않으며 역할이나 연결이 기대값과 다르면 오류로 중단합니다.
+
+직원 레코드와 로그인 계정은 생명주기가 분리되어 있습니다. 관리자는 직원 목록에서 로그인
+아이디 또는 `미발급` 상태를 확인하고, 계정이 없는 재직 직원의 상세 화면에서 아이디와 초기
+비밀번호를 한 번 발급할 수 있습니다. 기존 계정의 로그인 아이디 변경과 비밀번호 재설정은
+프로필 수정에 포함하지 않습니다.
+
+## 코드 경계
+
+```text
+src/app          페이지와 Route Handler
+src/components   클라이언트 상호작용과 공통 UI
+src/server       인증, 권한, 도메인 규칙, DB, 외부 API
+prisma           데이터 모델, 마이그레이션, 시드
+scripts          외부 API 측정 도구
+docs             판단과 측정 결과
+```
+
+`src/server`는 `server-only`로 보호하며 브라우저 번들에서 가져올 수 없습니다.
