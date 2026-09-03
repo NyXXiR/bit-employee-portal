@@ -13,8 +13,12 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "test": "node scripts/run-tests.mjs",
     "test:smoke": "node --env-file=.env --import tsx scripts/smoke-test.ts",
-    "measure": "tsx scripts/measure-background-check.ts"
+    "measure": "tsx scripts/measure-background-check.ts",
+    "measure:analyze": "tsx scripts/analyze-measurements.ts",
+    "measure:validate": "tsx scripts/validate-retry-policy.ts",
+    "submit:collect": "tsx scripts/collect-submission.ts"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
