@@ -33,8 +33,12 @@ const root = process.cwd();
 const outputDir = path.join(root, "docs", "submit");
 
 async function main() {
-  await rm(outputDir, { recursive: true, force: true });
+  // 이 스크립트가 만드는 파일만 지운다. docs/submit/ 을 통째로 날리면
+  // 여기서 관리하지 않는 것(ai-log/ 의 대화 기록 등)까지 같이 사라진다.
   await mkdir(outputDir, { recursive: true });
+  for (const item of items) {
+    await rm(path.join(outputDir, item.target), { force: true });
+  }
 
   const copied: Item[] = [];
   const missing: Item[] = [];
@@ -54,7 +58,8 @@ async function main() {
 
 **이 폴더는 \`npx tsx scripts/collect-submission.ts\` 가 만든 사본이다.**
 원본은 저장소 루트에 있고, 여기 파일을 고쳐도 원본에 반영되지 않는다.
-원본을 고친 뒤 위 명령을 다시 돌리면 이 폴더가 새로 만들어진다.
+원본을 고친 뒤 위 명령을 다시 돌리면 아래 표의 파일만 새로 덮어쓴다
+(\`ai-log/\` 처럼 이 스크립트가 관리하지 않는 것은 건드리지 않는다).
 
 마지막으로 모은 시각: ${new Date().toISOString()}
 
@@ -63,6 +68,19 @@ async function main() {
 | 제출물 | 파일 | 상태 | 내용 |
 |---|---|---|---|
 ${[...copied.map((item) => line(item, true)), ...missing.map((item) => line(item, false))].join("\n")}
+
+## ai-log/ — 제출물 4의 첨부
+
+\`ai-log/\` 는 이 스크립트가 건드리지 않는다. AI 대화 기록이 들어 있고,
+\`npx tsx scripts/export-transcript.ts <세션.jsonl> <출력.md>\` 로 만든다.
+
+| 파일 | 내용 |
+|---|---|
+| \`대화전체-세션1.md\` | 읽기용. 사람 발화와 AI 답변은 원문, 도구 호출은 요약 |
+| \`원본-세션1.jsonl\` | 빠짐없는 원본 트랜스크립트 |
+
+제출물 4는 이 첨부와 별개로 A(거절한 제안 3개) · B(잘못 만들어 고친 지점) ·
+C(설명하기 어려운 부분)를 \`AI_LOG.md\` 에 따로 정리할 것을 요구한다.
 
 ## 제출물 1 — 파일이 아닌 것
 
