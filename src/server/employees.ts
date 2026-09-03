@@ -246,16 +246,38 @@ export async function getEmployee(employeeId: string) {
   return adminEmployeeDto(employee);
 }
 
-export async function listProfileChanges(employeeId:string) {
+export async function listProfileChanges(
+  employeeId: string,
+  options: { limit?: number; cursor?: string } = {},
+) {
   const employee = await db.employee.findUnique({where:{employeeId}});
   if (!employee) throw new AppError(404,"EMPLOYEE_NOT_FOUND","직원을 찾을 수 없습니다.");
-  const changes = await db.profileChange.findMany({
+  const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+  if (options.cursor) {
+    const cursorExists = await db.profileChange.count({
+      where: { id: options.cursor, employeeRecordId: employee.id },
+    });
+    if (cursorExists !== 1) {
+      throw new AppError(400, "INVALID_CURSOR", "변경 이력 조회 위치가 올바르지 않습니다.");
+    }
+  }
+  const [total, rows] = await db.$transaction([
+    db.profileChange.count({ where: { employeeRecordId: employee.id } }),
+    db.profileChange.findMany({
     where:{employeeRecordId:employee.id},
     include:{actor:{select:{loginId:true}}},
-    orderBy:{createdAt:"desc"},
-    take:100,
-  });
-  return changes.map((change)=>({id:change.id,field:change.field,beforeValue:change.beforeValue,afterValue:change.afterValue,changedBy:change.actor.loginId,createdAt:change.createdAt.toISOString()}));
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
+    }),
+  ]);
+  const hasMore = rows.length > limit;
+  const changes = rows.slice(0, limit).map((change)=>({id:change.id,field:change.field,beforeValue:change.beforeValue,afterValue:change.afterValue,changedBy:change.actor.loginId,createdAt:change.createdAt.toISOString()}));
+  return {
+    changes,
+    total,
+    nextCursor: hasMore ? changes.at(-1)?.id ?? null : null,
+  };
 }
 
 type ProfileInput = {

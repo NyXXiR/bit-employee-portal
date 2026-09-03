@@ -36,9 +36,16 @@ const MAX_REASON = 500;
 export function AbandonCheckDialog({
   checkId,
   externalCheckId,
+  onAbandoned,
 }: {
   checkId: string;
   externalCheckId: string | null;
+  onAbandoned?: (check: {
+    id: string;
+    status: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+  }) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -69,7 +76,8 @@ export function AbandonCheckDialog({
     setOpen(false);
     setReason("");
     toast.success("검사를 종료했습니다. 이제 새 검사를 요청할 수 있습니다.");
-    router.refresh();
+    if (onAbandoned) onAbandoned(body);
+    else router.refresh();
   }
 
   return (

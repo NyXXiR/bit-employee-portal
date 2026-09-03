@@ -43,9 +43,9 @@ export default async function EmployeeDetailPage({
     throw error;
   });
 
-  const [checks, changes] = await Promise.all([
-    listBackgroundChecks(employeeId),
-    listProfileChanges(employeeId),
+  const [checkPage, changePage] = await Promise.all([
+    listBackgroundChecks(employeeId, 5),
+    listProfileChanges(employeeId, { limit: 5 }),
   ]);
 
   const terminatedAt = formatDateTime(employee.terminatedAt);
@@ -106,11 +106,11 @@ export default async function EmployeeDetailPage({
           <TabsTrigger value="profile">정보</TabsTrigger>
           <TabsTrigger value="checks">
             Background Check
-            {checks.length > 0 ? <Count n={checks.length} /> : null}
+            {checkPage.total > 0 ? <Count n={checkPage.total} /> : null}
           </TabsTrigger>
           <TabsTrigger value="history">
             변경 이력
-            {changes.length > 0 ? <Count n={changes.length} /> : null}
+            {changePage.total > 0 ? <Count n={changePage.total} /> : null}
           </TabsTrigger>
         </TabsList>
 
@@ -143,12 +143,13 @@ export default async function EmployeeDetailPage({
             employeeId={employee.employeeId}
             profileComplete={employee.profileComplete}
             active={employee.status === "ACTIVE"}
-            checks={checks}
+            checks={checkPage.checks}
+            total={checkPage.total}
           />
         </TabsContent>
 
         <TabsContent value="history" className="pt-6">
-          <ProfileChanges changes={changes} />
+          <ProfileChanges employeeId={employee.employeeId} initialPage={changePage} />
         </TabsContent>
       </Tabs>
     </AppShell>

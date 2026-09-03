@@ -94,7 +94,7 @@ model ProfileChange {
   afterValue        String?
   createdAt         DateTime @default(now())
 
-  @@index([employeeRecordId, createdAt])
+  @@index([employeeRecordId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model BackgroundCheck {
@@ -119,7 +119,7 @@ model BackgroundCheck {
   updatedAt            DateTime              @updatedAt
 
   @@unique([employeeRecordId, activeSlot])
-  @@index([employeeRecordId, createdAt])
+  @@index([employeeRecordId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([status])
 }
 
