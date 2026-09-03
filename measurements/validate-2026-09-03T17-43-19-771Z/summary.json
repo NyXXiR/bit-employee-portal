@@ -1,0 +1,93 @@
+{
+  "runId": "2026-09-03T17-43-19-771Z",
+  "measuredAt": "2026-09-03T17:46:35.353Z",
+  "policy": {
+    "getTimeoutMs": 1000,
+    "maxAttempts": 4,
+    "errorRetryDelaysMs": [
+      500,
+      500,
+      500
+    ],
+    "retryBudgetMs": 5500
+  },
+  "prediction": {
+    "perAttemptSuccessPercent": 25.3,
+    "cumulativeAfterMaxAttemptsPercent": 68.9,
+    "expectedWallClockMs": 2680
+  },
+  "observed": {
+    "trials": 100,
+    "perAttempt": {
+      "n": 272,
+      "successes": 68,
+      "percent": 25,
+      "ci": {
+        "low": 20.23,
+        "high": 30.47
+      }
+    },
+    "overall": {
+      "successes": 68,
+      "percent": 68,
+      "ci": {
+        "low": 58.34,
+        "high": 76.33
+      }
+    },
+    "cumulative": [
+      {
+        "attempts": 1,
+        "successes": 21,
+        "rate": 21,
+        "ci": {
+          "low": 14.17,
+          "high": 29.98
+        }
+      },
+      {
+        "attempts": 2,
+        "successes": 46,
+        "rate": 46,
+        "ci": {
+          "low": 36.56,
+          "high": 55.74
+        }
+      },
+      {
+        "attempts": 3,
+        "successes": 61,
+        "rate": 61,
+        "ci": {
+          "low": 51.2,
+          "high": 69.98
+        }
+      },
+      {
+        "attempts": 4,
+        "successes": 68,
+        "rate": 68,
+        "ci": {
+          "low": 58.34,
+          "high": 76.33
+        }
+      }
+    ],
+    "wallClockMs": {
+      "p50": 1613.8,
+      "p95": 3942.3,
+      "max": 4598.7,
+      "mean": 1748.3
+    },
+    "successWallClockMs": {
+      "n": 68,
+      "p50": 835.7,
+      "p95": 3068.2,
+      "mean": 1252.8
+    },
+    "stopReasons": {
+      "max_attempts": 32,
+      "success": 68
+    }
+  }
+}

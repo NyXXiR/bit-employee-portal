@@ -1,0 +1,417 @@
+{
+  "runId": "2026-09-03T15-20-07-345Z",
+  "measuredAt": "2026-09-03T17:16:30.713Z",
+  "baseUrl": "https://54capvm12g.execute-api.ap-northeast-2.amazonaws.com",
+  "configuration": {
+    "timeoutMs": 60000,
+    "duplicatePosts": 6,
+    "pendingSamples": 40,
+    "pendingPollMs": 2000,
+    "pendingCapMs": 240000,
+    "latencyBatches": 20,
+    "latencyBatchSize": 50,
+    "latencyBatchGapMs": 90000,
+    "perConcurrencyLevel": 100,
+    "concurrencyLevels": [
+      1,
+      5,
+      10,
+      20
+    ]
+  },
+  "contract": [],
+  "duplicate": {
+    "employeeId": "",
+    "distinctCheckIds": 0,
+    "posts": []
+  },
+  "pending": [],
+  "latency": {
+    "overall": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "min": null,
+      "mean": null,
+      "statusDistribution": {}
+    },
+    "successOnly": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "min": null,
+      "mean": null,
+      "statusDistribution": {}
+    },
+    "errorOnly": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "min": null,
+      "mean": null,
+      "statusDistribution": {}
+    },
+    "firstOfBatch": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "min": null,
+      "mean": null,
+      "statusDistribution": {}
+    },
+    "restOfBatch": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "min": null,
+      "mean": null,
+      "statusDistribution": {}
+    },
+    "perBatch": [
+      {
+        "batchIndex": 0,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 1,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 2,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 3,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 4,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 5,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 6,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 7,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 8,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 9,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 10,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 11,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 12,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 13,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 14,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 15,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 16,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 17,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 18,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      },
+      {
+        "batchIndex": 19,
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "min": null,
+        "mean": null,
+        "statusDistribution": {}
+      }
+    ]
+  },
+  "postLatency": {
+    "n": 0,
+    "p50": null,
+    "p95": null,
+    "p99": null,
+    "max": null,
+    "min": null,
+    "mean": null,
+    "statusDistribution": {}
+  },
+  "pollLatency": {
+    "n": 0,
+    "p50": null,
+    "p95": null,
+    "p99": null,
+    "max": null,
+    "min": null,
+    "mean": null,
+    "statusDistribution": {}
+  },
+  "concurrency": {
+    "1": {
+      "n": 100,
+      "p50": 73.79,
+      "p95": 30012.53,
+      "p99": 30017.92,
+      "max": 30021.02,
+      "min": 18.51,
+      "mean": 7102.88,
+      "statusDistribution": {
+        "200": {
+          "count": 32,
+          "percentage": 32
+        },
+        "500": {
+          "count": 36,
+          "percentage": 36
+        },
+        "503": {
+          "count": 32,
+          "percentage": 32
+        }
+      }
+    },
+    "5": {
+      "n": 100,
+      "p50": 194.78,
+      "p95": 30036.24,
+      "p99": 30061.86,
+      "max": 30079.72,
+      "min": 21.58,
+      "mean": 6325.52,
+      "statusDistribution": {
+        "200": {
+          "count": 41,
+          "percentage": 41
+        },
+        "500": {
+          "count": 32,
+          "percentage": 32
+        },
+        "503": {
+          "count": 27,
+          "percentage": 27
+        }
+      }
+    },
+    "10": {
+      "n": 100,
+      "p50": 177.98,
+      "p95": 30040.99,
+      "p99": 30060.58,
+      "max": 30093.61,
+      "min": 23.22,
+      "mean": 6056.42,
+      "statusDistribution": {
+        "200": {
+          "count": 43,
+          "percentage": 43
+        },
+        "500": {
+          "count": 39,
+          "percentage": 39
+        },
+        "503": {
+          "count": 18,
+          "percentage": 18
+        }
+      }
+    },
+    "20": {
+      "n": 100,
+      "p50": 192.33,
+      "p95": 30045.22,
+      "p99": 30051.65,
+      "max": 30061.3,
+      "min": 22.35,
+      "mean": 5349.06,
+      "statusDistribution": {
+        "200": {
+          "count": 35,
+          "percentage": 35
+        },
+        "500": {
+          "count": 33,
+          "percentage": 33
+        },
+        "503": {
+          "count": 32,
+          "percentage": 32
+        }
+      }
+    }
+  }
+}

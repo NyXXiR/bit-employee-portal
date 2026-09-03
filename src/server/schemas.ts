@@ -43,6 +43,11 @@ export const abandonCheckSchema = z.object({
   reason:z.string().trim().min(10,"확인 근거를 10자 이상 입력해 주세요.").max(500),
 });
 
+export const listProfileChangesQuerySchema = z.object({
+  cursor: z.string().trim().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 /**
  * 직원 목록 조회 조건. 관리자 화면과 GET /api/admin/employees가 같은 규칙을 쓴다.
  * 빈 문자열은 "조건 없음"과 같으므로 undefined로 접는다.

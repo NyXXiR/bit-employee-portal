@@ -1,0 +1,19 @@
+{
+  "runId": "2026-09-03T15-20-07-345Z",
+  "totalObservations": 1651,
+  "firstObservation": "2026-09-03T15:20:07.349Z",
+  "lastObservation": "2026-09-03T17:24:58.380Z",
+  "rowsByPhaseOperation": {
+    "contract/GET unknown checkId": 1,
+    "contract/POST": 4,
+    "contract/GET list without employeeId": 1,
+    "contract/GET list unknown employeeId": 1,
+    "contract/DELETE checkId": 1,
+    "duplicate/POST": 6,
+    "duplicate/GET list after duplicates": 1,
+    "pending/POST": 40,
+    "pending/GET poll": 109,
+    "latency/GET latency": 1000,
+    "concurrency/GET concurrency": 487
+  }
+}

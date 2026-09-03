@@ -142,7 +142,7 @@ async function main() {
   assert(explicitlyRevoked.response.status === 401 && explicitlyRevoked.body?.code === "SESSION_REVOKED","Revoked session reason was not distinguished");
 
   const changes = await request(`/api/admin/employees/${testEmployeeId}/changes`,{},adminCookie);
-  assert(changes.response.status === 200 && changes.body?.some((change:{field:string})=>change.field === "givenName"),"Profile change audit was not recorded");
+  assert(changes.response.status === 200 && changes.body?.changes?.some((change:{field:string})=>change.field === "givenName"),"Profile change audit was not recorded");
 
   const employeeCheckDenied = await request(`/api/admin/employees/${testEmployeeId}/background-checks`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idempotencyKey:crypto.randomUUID()})},employeeCookie);
   assert(employeeCheckDenied.response.status === 403,"Employee could request a Background Check");
@@ -163,7 +163,7 @@ async function main() {
   const postCheckProfileUpdate = await request(`/api/admin/employees/${testEmployeeId}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({givenName:"검사후수정"})},adminCookie);
   assert(postCheckProfileUpdate.response.status === 200,"Profile could not be updated after a check request");
   const checkHistory = await request(`/api/admin/employees/${testEmployeeId}/background-checks`,{},adminCookie);
-  const comparedCheck = checkHistory.body?.find((check:{id:string})=>check.id === pendingCheck.id);
+  const comparedCheck = checkHistory.body?.checks?.find((check:{id:string})=>check.id === pendingCheck.id);
   assert(comparedCheck?.profileComparison?.matchesCurrentProfile === false && comparedCheck.profileComparison.changedFields.includes("givenName"),"Check snapshot and current profile difference was not reported");
   const persistedSnapshot = await db.backgroundCheck.findUniqueOrThrow({where:{id:pendingCheck.id}});
   assert(persistedSnapshot.givenNameSnapshot === "직원수정","Profile update rewrote the historical check snapshot");

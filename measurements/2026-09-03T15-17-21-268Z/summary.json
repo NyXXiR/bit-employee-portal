@@ -1,0 +1,321 @@
+{
+  "runId": "2026-09-03T15-17-21-268Z",
+  "measuredAt": "2026-09-03T15:18:17.495Z",
+  "baseUrl": "https://54capvm12g.execute-api.ap-northeast-2.amazonaws.com",
+  "configuration": {
+    "timeoutMs": 60000,
+    "duplicatePosts": 2,
+    "pendingSamples": 2,
+    "pendingPollMs": 2000,
+    "pendingCapMs": 30000,
+    "latencyBatches": 1,
+    "latencyBatchSize": 3,
+    "latencyBatchGapMs": 1000,
+    "perConcurrencyLevel": 2,
+    "concurrencyLevels": [
+      1,
+      2
+    ]
+  },
+  "contract": [
+    {
+      "operation": "GET unknown checkId",
+      "status": 500,
+      "latencyMs": 149.72,
+      "retryAfter": null,
+      "body": {
+        "error": "Internal Server Error",
+        "message": "Service temporarily unavailable. Please try again later.",
+        "statusCode": 500
+      },
+      "error": null
+    },
+    {
+      "operation": "POST missing fields",
+      "status": 400,
+      "latencyMs": 36.18,
+      "retryAfter": null,
+      "body": {
+        "error": "Bad Request",
+        "message": "Missing required field: firstName",
+        "statusCode": 400
+      },
+      "error": null
+    },
+    {
+      "operation": "POST empty body",
+      "status": 400,
+      "latencyMs": 30.34,
+      "retryAfter": null,
+      "body": {
+        "error": "Bad Request",
+        "message": "Missing required field: employeeId",
+        "statusCode": 400
+      },
+      "error": null
+    },
+    {
+      "operation": "GET list without employeeId",
+      "status": 400,
+      "latencyMs": 420.22,
+      "retryAfter": null,
+      "body": {
+        "error": "Bad Request",
+        "message": "Missing required query parameter: employeeId",
+        "statusCode": 400
+      },
+      "error": null
+    },
+    {
+      "operation": "GET list unknown employeeId",
+      "status": 500,
+      "latencyMs": 33.76,
+      "retryAfter": null,
+      "body": {
+        "error": "Internal Server Error",
+        "message": "Service temporarily unavailable. Please try again later.",
+        "statusCode": 500
+      },
+      "error": null
+    },
+    {
+      "operation": "POST future dateOfBirth",
+      "status": 201,
+      "latencyMs": 59.81,
+      "retryAfter": null,
+      "body": {
+        "checkId": "CHK-118330cb-cc88-4f72-9782-18eabed9ef4d",
+        "employeeId": "MEASURE-CONTRACT-DOB",
+        "status": "clear",
+        "createdAt": "2026-09-03T15:17:22.179Z",
+        "message": "Background check request has been submitted successfully."
+      },
+      "error": null
+    },
+    {
+      "operation": "POST malformed dateOfBirth",
+      "status": 201,
+      "latencyMs": 59.06,
+      "retryAfter": null,
+      "body": {
+        "checkId": "CHK-1c80a527-eb1e-4689-a498-7a9eb40b4fef",
+        "employeeId": "MEASURE-CONTRACT-DOB2",
+        "status": "clear",
+        "createdAt": "2026-09-03T15:17:22.238Z",
+        "message": "Background check request has been submitted successfully."
+      },
+      "error": null
+    },
+    {
+      "operation": "DELETE checkId",
+      "status": 404,
+      "latencyMs": 21.32,
+      "retryAfter": null,
+      "body": {
+        "message": "Not Found"
+      },
+      "error": null
+    }
+  ],
+  "duplicate": {
+    "employeeId": "MEASURE-DUP-2026-09-03T15-17-21-268Z",
+    "distinctCheckIds": 2,
+    "posts": [
+      {
+        "operation": "POST 1",
+        "status": 201,
+        "latencyMs": 77.95,
+        "body": {
+          "checkId": "CHK-dce96e39-32d9-476b-9bfa-c4b6cca9f70e",
+          "employeeId": "MEASURE-DUP-2026-09-03T15-17-21-268Z",
+          "status": "clear",
+          "createdAt": "2026-09-03T15:17:22.330Z",
+          "message": "Background check request has been submitted successfully."
+        }
+      },
+      {
+        "operation": "POST 2",
+        "status": 201,
+        "latencyMs": 59.57,
+        "body": {
+          "checkId": "CHK-a262b6f2-b08b-4ca5-87c6-9f5dec9107b3",
+          "employeeId": "MEASURE-DUP-2026-09-03T15-17-21-268Z",
+          "status": "pending",
+          "createdAt": "2026-09-03T15:17:22.405Z",
+          "message": "Background check request has been submitted successfully."
+        }
+      },
+      {
+        "operation": "GET list after duplicates",
+        "status": 500,
+        "latencyMs": 39.31,
+        "body": {
+          "error": "Internal Server Error",
+          "message": "Service temporarily unavailable. Please try again later.",
+          "statusCode": 500
+        }
+      }
+    ]
+  },
+  "pending": [
+    {
+      "checkId": "CHK-910cb297-ba79-4c7d-b9d3-48d082666536",
+      "employeeId": "MEASURE-PEND-2026-09-03T15-17-21-268Z-000",
+      "postStatus": "pending",
+      "finalStatus": null,
+      "observedMs": null,
+      "serverCreatedAt": null,
+      "serverCompletedAt": null,
+      "serverMs": null
+    },
+    {
+      "checkId": "CHK-65659e74-ea86-4675-8588-485840b646f7",
+      "employeeId": "MEASURE-PEND-2026-09-03T15-17-21-268Z-001",
+      "postStatus": "pending",
+      "finalStatus": null,
+      "observedMs": null,
+      "serverCreatedAt": null,
+      "serverCompletedAt": null,
+      "serverMs": null
+    }
+  ],
+  "latency": {
+    "overall": {
+      "n": 3,
+      "p50": 41.86,
+      "p95": 47.61,
+      "p99": 47.61,
+      "max": 47.61,
+      "min": 35.45,
+      "mean": 41.64,
+      "statusDistribution": {
+        "500": {
+          "count": 3,
+          "percentage": 100
+        }
+      }
+    },
+    "firstOfBatch": {
+      "n": 1,
+      "p50": 47.61,
+      "p95": 47.61,
+      "p99": 47.61,
+      "max": 47.61,
+      "min": 47.61,
+      "mean": 47.61,
+      "statusDistribution": {
+        "500": {
+          "count": 1,
+          "percentage": 100
+        }
+      }
+    },
+    "restOfBatch": {
+      "n": 2,
+      "p50": 35.45,
+      "p95": 41.86,
+      "p99": 41.86,
+      "max": 41.86,
+      "min": 35.45,
+      "mean": 38.66,
+      "statusDistribution": {
+        "500": {
+          "count": 2,
+          "percentage": 100
+        }
+      }
+    },
+    "perBatch": [
+      {
+        "batchIndex": 0,
+        "n": 3,
+        "p50": 41.86,
+        "p95": 47.61,
+        "p99": 47.61,
+        "max": 47.61,
+        "min": 35.45,
+        "mean": 41.64,
+        "statusDistribution": {
+          "500": {
+            "count": 3,
+            "percentage": 100
+          }
+        }
+      }
+    ]
+  },
+  "postLatency": {
+    "n": 8,
+    "p50": 48.09,
+    "p95": 77.95,
+    "p99": 77.95,
+    "max": 77.95,
+    "min": 30.34,
+    "mean": 51.36,
+    "statusDistribution": {
+      "201": {
+        "count": 6,
+        "percentage": 75
+      },
+      "400": {
+        "count": 2,
+        "percentage": 25
+      }
+    }
+  },
+  "pollLatency": {
+    "n": 4,
+    "p50": 56.9,
+    "p95": 30019.71,
+    "p99": 30019.71,
+    "max": 30019.71,
+    "min": 25.2,
+    "mean": 15028.74,
+    "statusDistribution": {
+      "500": {
+        "count": 2,
+        "percentage": 50
+      },
+      "503": {
+        "count": 2,
+        "percentage": 50
+      }
+    }
+  },
+  "concurrency": {
+    "1": {
+      "n": 2,
+      "p50": 35.9,
+      "p95": 8091.44,
+      "p99": 8091.44,
+      "max": 8091.44,
+      "min": 35.9,
+      "mean": 4063.67,
+      "statusDistribution": {
+        "200": {
+          "count": 1,
+          "percentage": 50
+        },
+        "500": {
+          "count": 1,
+          "percentage": 50
+        }
+      }
+    },
+    "2": {
+      "n": 2,
+      "p50": 89.76,
+      "p95": 211.12,
+      "p99": 211.12,
+      "max": 211.12,
+      "min": 89.76,
+      "mean": 150.44,
+      "statusDistribution": {
+        "200": {
+          "count": 2,
+          "percentage": 100
+        }
+      }
+    }
+  }
+}

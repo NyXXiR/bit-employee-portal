@@ -117,15 +117,20 @@ async function settleInitialRequest(
   return db.backgroundCheck.findUniqueOrThrow({ where: { id }, include: { employee: true } });
 }
 
-export async function listBackgroundChecks(employeeId: string) {
+export async function listBackgroundChecks(employeeId: string, limit = 5) {
   const employee = await db.employee.findUnique({ where: { employeeId } });
   if (!employee) throw new AppError(404, "EMPLOYEE_NOT_FOUND", "직원을 찾을 수 없습니다.");
-  const checks = await db.backgroundCheck.findMany({
-    where: { employeeRecordId: employee.id },
-    include: { employee: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return checks.map(checkDto);
+  const take = Math.min(Math.max(limit, 1), 20);
+  const [total, checks] = await db.$transaction([
+    db.backgroundCheck.count({ where: { employeeRecordId: employee.id } }),
+    db.backgroundCheck.findMany({
+      where: { employeeRecordId: employee.id },
+      include: { employee: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take,
+    }),
+  ]);
+  return { checks: checks.map(checkDto), total };
 }
 
 export async function requestBackgroundCheck(
@@ -200,7 +205,7 @@ export async function requestBackgroundCheck(
         givenName: localCheck.givenNameSnapshot,
         dateOfBirth: formatDateOnly(localCheck.dateOfBirthSnapshot)!,
       })),
-      signal: AbortSignal.timeout(env.backgroundCheckTimeoutMs),
+      signal: AbortSignal.timeout(env.backgroundCheckPostTimeoutMs),
       cache: "no-store",
     });
 
@@ -267,7 +272,7 @@ export async function refreshBackgroundCheck(localCheckId: string) {
   try {
     const response = await fetch(
       `${env.backgroundCheckApiUrl}/background-checks/${encodeURIComponent(check.externalCheckId)}`,
-      { signal: AbortSignal.timeout(env.backgroundCheckTimeoutMs), cache: "no-store" },
+      { signal: AbortSignal.timeout(env.backgroundCheckGetTimeoutMs), cache: "no-store" },
     );
     if (!response.ok) {
       const errorBody: unknown = await response.json().catch(() => null);
