@@ -376,8 +376,8 @@ function CheckProgress({
         if (response.status === 503) {
           /*
            * 외부 API가 알려준 대기 시간. 스케줄에는 반영하지 않고 메시지로만 알린다.
-           * 실측(MEASUREMENTS.md 6-c): 503 395건 중 Retry-After 헤더는 0건이고,
-           * 본문 retryAfter는 239건에 값이 전부 상수 30이었다. 오류가 서로 독립이라
+           * 실측(MEASUREMENTS.md 6-c): 503 509건 중 Retry-After 헤더는 0건이고,
+           * 본문 retryAfter는 303건에 값이 전부 상수 30이었다. 오류가 서로 독립이라
            * 30초를 기다린 뒤의 성공 확률이 0.5초 뒤와 같으므로 따를 근거가 없다.
            */
           const advisedSeconds = retryAfterSeconds(
