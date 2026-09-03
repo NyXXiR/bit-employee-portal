@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { activeSlotFor, classifyCreateFailure, compareBackgroundCheckSubject, externalIdentityMatches, idempotencyDecision, isFinalCheckStatus, retryAfterSeconds, toDomainCheckStatus, toExternalBackgroundCheckRequest } from "../src/domain/background-check";
+import { activeSlotFor, classifyCreateFailure, compareBackgroundCheckSubject, externalIdentityMatches, externalRetryAfterSeconds, idempotencyDecision, isFinalCheckStatus, retryAfterSeconds, toDomainCheckStatus, toExternalBackgroundCheckRequest } from "../src/domain/background-check";
 import { mayEditEmployee, mayRequestBackgroundCheck, profileChanges, terminationDecision } from "../src/domain/employee";
 
 test("employee may edit only their own profile while an admin may edit any profile",()=>{
@@ -60,6 +60,19 @@ test("Retry-After prefers a valid response header and falls back to the body", (
   assert.equal(retryAfterSeconds(null, 45), 45);
   assert.equal(retryAfterSeconds("invalid", "20"), 20);
   assert.equal(retryAfterSeconds("-1", null), undefined);
+});
+
+test("external 503 retryAfter is read from the observed JSON body when the header is absent", () => {
+  const observedBody = {
+    error: "Service Unavailable",
+    message: "The service is currently overloaded.",
+    retryAfter: 30,
+    statusCode: 503,
+  };
+
+  assert.equal(externalRetryAfterSeconds(null, observedBody), 30);
+  assert.equal(externalRetryAfterSeconds("45", observedBody), 45);
+  assert.equal(externalRetryAfterSeconds(null, { statusCode: 503 }), undefined);
 });
 
 test("profile changes never rewrite a check snapshot and are reported from one domain rule", () => {

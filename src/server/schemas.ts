@@ -31,6 +31,10 @@ export const provisionEmployeeAccountSchema = z.object({
   initialPassword: z.string().min(10).max(200),
 });
 
+export const resetEmployeePasswordSchema = z.object({
+  temporaryPassword: z.string().min(10).max(200),
+});
+
 export const createCheckSchema = z.object({
   idempotencyKey: z.uuid(),
 });

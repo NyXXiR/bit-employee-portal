@@ -17,8 +17,10 @@ export async function GET(request: Request) {
       throw new AppError(400, "INVALID_QUERY", parsed.error.issues[0]?.message ?? "조회 조건을 확인해 주세요.");
     }
 
-    const { filter, q, page, pageSize } = parsed.data;
-    return NextResponse.json(await listEmployees({ filter, query: q, page, pageSize }));
+    const { filter, q, sort, dir, page, pageSize } = parsed.data;
+    return NextResponse.json(
+      await listEmployees({ filter, query: q, sort, direction: dir, page, pageSize }),
+    );
   } catch (error) {
     return routeError(error);
   }

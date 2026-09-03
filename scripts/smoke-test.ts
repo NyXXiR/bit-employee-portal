@@ -7,6 +7,7 @@ const testPassword = "Smoke-test-password-2026!";
 const provisionEmployeeId = "SMOKE-ACCOUNT-FIXTURE";
 const provisionLoginId = "smoke-provisioned-employee";
 const provisionPassword = "Smoke-provision-password-2026!";
+const resetPassword = "Smoke-reset-password-2026!";
 const requiredSeedEmployeeIds = Array.from({length:10},(_,index)=>`EMP-${String(index+1).padStart(3,"0")}`);
 
 function assert(condition:unknown, message:string): asserts condition {
@@ -59,6 +60,16 @@ async function main() {
   const list = await request("/api/admin/employees",{},adminCookie);
   assert(list.response.status === 200,"Admin could not list employees");
   assert(list.body?.summary?.total >= 10,"Employee total is smaller than the required seed set");
+  const nameSortedList = await request("/api/admin/employees?sort=name&dir=asc&pageSize=100",{},adminCookie);
+  const nameCollator = new Intl.Collator("ko-KR");
+  const returnedNames = nameSortedList.body?.employees?.map((employee:{fullName:string})=>employee.fullName) ?? [];
+  assert(
+    nameSortedList.response.status === 200 &&
+      nameSortedList.body?.sort === "name" &&
+      nameSortedList.body?.direction === "asc" &&
+      JSON.stringify(returnedNames) === JSON.stringify(returnedNames.toSorted(nameCollator.compare)),
+    "Admin API did not sort by the displayed fullName in Korean order",
+  );
   const seedEmployeeCount = await db.employee.count({where:{employeeId:{in:requiredSeedEmployeeIds}}});
   assert(seedEmployeeCount === 10,"One or more required seed employees are missing");
 
@@ -85,6 +96,21 @@ async function main() {
   const provisionedCookie = await login(provisionLoginId,provisionPassword);
   const provisionedProfile = await request("/api/portal/profile",{},provisionedCookie);
   assert(provisionedProfile.response.status === 200 && provisionedProfile.body?.employeeId === provisionEmployeeId,"Provisioned employee could not log in");
+  const reset = await request(`/api/admin/employees/${provisionEmployeeId}/account/reset-password`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({temporaryPassword:resetPassword})},adminCookie);
+  assert(reset.response.status === 200 && reset.body?.sessionsRevoked >= 1,"Admin could not reset an employee password and revoke sessions");
+  const resetAudit = await db.auditLog.findFirst({
+    where:{action:"EMPLOYEE_PASSWORD_RESET",targetId:provisionEmployeeId},
+  });
+  assert(resetAudit !== null,"Password reset was not recorded in the audit log");
+  const resetRevokedSession = await request("/api/portal/profile",{},provisionedCookie);
+  assert(resetRevokedSession.response.status === 401 && resetRevokedSession.body?.code === "SESSION_REVOKED","Password reset did not revoke an existing employee session");
+  const oldPasswordLogin = await request("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({loginId:provisionLoginId,password:provisionPassword})});
+  assert(oldPasswordLogin.response.status === 401,"The previous password still worked after reset");
+  const resetCookie = await login(provisionLoginId,resetPassword);
+  const resetProfile = await request("/api/portal/profile",{},resetCookie);
+  assert(resetProfile.response.status === 200 && resetProfile.body?.employeeId === provisionEmployeeId,"The temporary password could not be used to log in");
+  const employeeResetDenied = await request(`/api/admin/employees/${provisionEmployeeId}/account/reset-password`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({temporaryPassword:"Smoke-forbidden-reset-2026!"})},employeeCookie);
+  assert(employeeResetDenied.response.status === 403,"Employee could reset another employee password");
   const provisionReplay = await request(`/api/admin/employees/${provisionEmployeeId}/account`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({loginId:"smoke-second-account",initialPassword:provisionPassword})},adminCookie);
   assert(provisionReplay.response.status === 409 && provisionReplay.body?.code === "ACCOUNT_ALREADY_EXISTS","A second account could be provisioned for one employee");
   const employeeProvisionDenied = await request(`/api/admin/employees/${provisionEmployeeId}/account`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({loginId:"smoke-forbidden-account",initialPassword:provisionPassword})},employeeCookie);
@@ -159,7 +185,7 @@ async function main() {
   const incompleteCheck = await request("/api/admin/employees/EMP-007/background-checks",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idempotencyKey:crypto.randomUUID()})},adminCookie);
   assert(incompleteCheck.response.status === 409 && incompleteCheck.body?.code === "PROFILE_INCOMPLETE","Missing date of birth did not block Background Check");
 
-  console.log(JSON.stringify({requiredSeedEmployees:10,employeeAdminAccess:403,ownProfile:200,accountlessEmployeeVisible:true,accountProvisioned:201,loginIdVisibleAndSearchable:true,provisionedEmployeeLogin:200,duplicateProvisionBlocked:409,employeeProvisionAccess:403,employeeCreated:201,loginIdReturned:true,loginIdVisibleToAdmin:true,profileUpdated:200,expiredSession:401,explicitlyRevokedSession:401,profileChangeAudited:200,employeeBackgroundCheckAccess:403,crossOriginMutation:403,idempotentReplay:200,activeCheckConflict:409,crossCommandKeyReuse:409,checkSnapshotPreserved:true,profileDifferenceReported:true,pendingAbandonBlocked:409,uncertainCheckAbandoned:200,terminationReplay:200,terminatedSession:403,terminatedRelogin:403,incompleteBackgroundCheck:409},null,2));
+  console.log(JSON.stringify({requiredSeedEmployees:10,fullNameKoreanSort:true,employeeAdminAccess:403,ownProfile:200,accountlessEmployeeVisible:true,accountProvisioned:201,loginIdVisibleAndSearchable:true,provisionedEmployeeLogin:200,passwordReset:200,passwordResetAudited:true,passwordResetRevokedSession:401,oldPasswordBlocked:401,temporaryPasswordLogin:200,employeePasswordResetAccess:403,duplicateProvisionBlocked:409,employeeProvisionAccess:403,employeeCreated:201,loginIdReturned:true,loginIdVisibleToAdmin:true,profileUpdated:200,expiredSession:401,explicitlyRevokedSession:401,profileChangeAudited:200,employeeBackgroundCheckAccess:403,crossOriginMutation:403,idempotentReplay:200,activeCheckConflict:409,crossCommandKeyReuse:409,checkSnapshotPreserved:true,profileDifferenceReported:true,pendingAbandonBlocked:409,uncertainCheckAbandoned:200,terminationReplay:200,terminatedSession:403,terminatedRelogin:403,incompleteBackgroundCheck:409},null,2));
 }
 
 main().finally(async()=>{ await cleanup(); await db.$disconnect(); });

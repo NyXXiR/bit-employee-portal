@@ -30,9 +30,6 @@ export const env = {
   get backgroundCheckTimeoutMs() {
     return numberEnv("BACKGROUND_CHECK_TIMEOUT_MS", 5000);
   },
-  get backgroundCheckRetentionDays() {
-    return numberEnv("BACKGROUND_CHECK_RETENTION_DAYS", 90);
-  },
   get appOrigin() {
     return process.env.APP_ORIGIN ?? "http://localhost:3000";
   },
