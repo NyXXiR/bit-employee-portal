@@ -32,7 +32,7 @@ jq -r 'select(.phase=="latency" and .status==200) | .latencyMs' \
 
 ---
 
-## 2026-09-03T15-20-07-345Z — 본 실측 (관측 1,651건)
+## 2026-09-03T15-20-07-345Z — 본 실측 (관측 1,964건)
 
 `MEASUREMENTS.md`가 인용하는 실행. 2026-09-03 15:20~17:18 UTC.
 
@@ -46,15 +46,27 @@ jq -r 'select(.phase=="latency" and .status==200) | .latencyMs' \
 
 ### 이 데이터를 쓸 때 반드시 알아야 할 것
 
-**1. `phase:"concurrency"` 이면서 `concurrency:1` 인 187건은 쓰지 말 것.**
-지연 단계를 중단시킨 프로세스가 종료되지 않고 겹쳐 돌아, 187건 중 100건이 다른 프로세스의 요청과 동시에 나갔다. 오류율이 69.5%로 부풀어 있다(깨끗한 87건만 봐도 71.3%).
-**동시성 1의 기준선은 `phase:"latency"` 1,000건을 쓴다** — 순수 단일 순차 요청이고 표본도 10배다.
+**1. 두 단계가 시간상 겹쳤다. 양방향으로 오염돼 있다.**
+
+지연 단계를 800건에서 중단시키려 했으나 프로세스가 죽지 않고 배치 20개를 끝까지 돌았고, 그 사이 동시성 단계를 별도 프로세스로 이어붙였다. 겹친 구간은 `2026-09-03T16:51:08Z` 이후다.
+
+- **`phase:"concurrency"` + `concurrency:1` 인 187건은 쓰지 말 것.** 187건 중 100건이 지연 단계와 겹쳐 나갔다. 오류율이 69.5%로 부풀어 있다(깨끗한 87건만 봐도 71.3%). **동시성 1의 기준선은 `phase:"latency"`를 쓴다.**
+- **`phase:"latency"` 의 `batchIndex` 16~19(200건)도 순수 단일 순차 요청이 아니다.** 동시성 단계와 겹친다. 엄밀히 하려면 `batchIndex <= 15`인 800건만 쓴다.
+
+겹친 200건을 빼도 결론은 같다(`MEASUREMENTS.md` 1절 끝의 대조표). p50 43.5 vs 42.6ms, 200 응답 비율 37.8% vs 37.3%, 1.2초 공백은 양쪽 모두 존재.
+
+```bash
+# 겹치지 않는 지연 표본만
+jq -c 'select(.phase=="latency" and .batchIndex<=15)'   measurements/2026-09-03T15-20-07-345Z/raw.ndjson
+```
 
 **2. 지연 분위수는 상태코드로 나눠서 볼 것.**
 오류 응답은 30ms대에 즉시 돌아오고(500, Lambda 503), 게이트웨이 503은 30초를 다 태운다. 둘을 섞으면 p95·p99가 전부 30,000ms에 붙어 분포가 아니라 게이트웨이 타임아웃을 재게 된다.
 
 **3. 503은 본문으로 출처를 갈라야 한다.**
-본문에 `retryAfter` 필드가 있으면 Lambda(빠름), `{"message":"Service Unavailable"}` 뿐이면 API Gateway(30초 벽). 헤더의 `apigw-requestid` 유무로도 갈린다.
+본문에 `retryAfter` 필드가 있으면 1초 안에 돌아온 것(303건, p50 32.8ms), `{"message":"Service Unavailable"}` 뿐이면 30초 벽에 걸린 것(206건, p50 30,013.6ms). 두 무리는 지연이 전혀 겹치지 않는다.
+
+**헤더로는 구분할 수 없다.** 두 형태의 헤더 키 집합이 동일하다(`apigw-requestid`/`connection`/`content-length`/`content-type`/`date`). 앞서 `apigw-requestid` 유무로 갈린다고 적었던 것은 오류다.
 
 **4. `pending` 단계는 n=40이라 꼬리를 신뢰할 수 없다.**
 몸통(중앙값)만 쓰고, 꼬리는 아래 별도 실측을 참조한다.
@@ -65,7 +77,7 @@ jq -r 'select(.phase=="latency" and .status==200) | .latencyMs' \
 
 | 파일 | 내용 |
 |---|---|
-| `raw.ndjson` | 관측 1,651건 전량 (약 900KB) |
+| `raw.ndjson` | 관측 1,964건 전량 |
 | `report.txt` | `analyze-measurements.ts` 출력 저장본 |
 | `index.json` | 단계·동작별 건수와 관측 구간 |
 | `summary-resume-concurrency.json` | 이어붙인 동시성 단계의 스크립트 자체 요약 |
