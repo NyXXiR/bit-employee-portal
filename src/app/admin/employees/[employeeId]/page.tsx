@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { ProfileChanges } from "@/components/profile-changes";
 import { ProfileForm } from "@/components/profile-form";
 import { ProvisionEmployeeAccountDialog } from "@/components/provision-employee-account-form";
+import { ResetEmployeePasswordDialog } from "@/components/reset-employee-password-dialog";
 import { EmploymentBadge } from "@/components/status";
 import { TerminateButton } from "@/components/terminate-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -125,6 +126,12 @@ export default async function EmployeeDetailPage({
                 <ProvisionEmployeeAccountDialog
                   employeeId={employee.employeeId}
                   fullName={employee.fullName}
+                />
+              ) : employee.status === "ACTIVE" && employee.loginId ? (
+                <ResetEmployeePasswordDialog
+                  employeeId={employee.employeeId}
+                  fullName={employee.fullName}
+                  loginId={employee.loginId}
                 />
               ) : null}
             </CardContent>

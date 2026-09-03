@@ -7,7 +7,7 @@ import { env } from "@/server/env";
 import { formatDateOnly } from "@/server/dates";
 import { AppError } from "@/server/errors";
 import type { SessionContext } from "@/server/auth";
-import { activeSlotFor, ACTIVE_CHECK_SLOT, classifyCreateFailure, compareBackgroundCheckSubject, externalIdentityMatches, idempotencyDecision, isFinalCheckStatus, retryAfterSeconds, toDomainCheckStatus, toExternalBackgroundCheckRequest } from "@/domain/background-check";
+import { activeSlotFor, ACTIVE_CHECK_SLOT, classifyCreateFailure, compareBackgroundCheckSubject, externalIdentityMatches, externalRetryAfterSeconds, idempotencyDecision, toDomainCheckStatus, toExternalBackgroundCheckRequest } from "@/domain/background-check";
 import { mayRequestBackgroundCheck } from "@/domain/employee";
 
 const createdSchema = z.object({
@@ -42,11 +42,6 @@ function safeDate(value: string | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function retentionDate(completedAt:Date|null):Date {
-  const base = completedAt?.getTime() ?? Date.now();
-  return new Date(base + env.backgroundCheckRetentionDays*24*60*60*1000);
-}
-
 function checkDto(check: Awaited<ReturnType<typeof findCheck>>) {
   if (!check) throw new AppError(404, "BACKGROUND_CHECK_NOT_FOUND", "검사 기록을 찾을 수 없습니다.");
   const requestedDateOfBirth = formatDateOnly(check.dateOfBirthSnapshot);
@@ -70,16 +65,22 @@ function checkDto(check: Awaited<ReturnType<typeof findCheck>>) {
     dateOfBirth: requestedDateOfBirth,
     profileComparison,
     status: check.status,
-    criminalRecord: check.criminalRecord,
-    educationVerified: check.educationVerified,
-    employmentVerified: check.employmentVerified,
-    creditScore: check.creditScore,
     estimatedCompletionSeconds: check.estimatedSeconds,
     failureCode: check.failureCode,
     failureMessage: check.failureMessage,
     createdAt: check.createdAt.toISOString(),
     completedAt: check.externalCompletedAt?.toISOString() ?? null,
-    resultPurgedAt: check.resultPurgedAt?.toISOString() ?? null,
+  };
+}
+
+/** 외부 응답에서 그 요청에만 실어 보낼 상세 결과. DB 모델에는 대응 컬럼이 없다. */
+function transientResultDto(result: ExternalResult) {
+  if (result.status !== "clear" && result.status !== "flagged") return null;
+  return {
+    criminalRecord: result.criminalRecord ?? null,
+    educationVerified: result.educationVerified ?? null,
+    employmentVerified: result.employmentVerified ?? null,
+    creditScore: result.creditScore ?? null,
   };
 }
 
@@ -99,13 +100,8 @@ async function persistExternalResult(
       externalCheckId: result.checkId,
       status,
       activeSlot: activeSlotFor(status),
-      criminalRecord: result.criminalRecord,
-      educationVerified: result.educationVerified,
-      employmentVerified: result.employmentVerified,
-      creditScore: result.creditScore,
       externalCreatedAt: safeDate(result.createdAt),
       externalCompletedAt: completedAt,
-      retentionUntil: status === "CLEAR" || status === "FLAGGED" ? retentionDate(completedAt) : null,
       failureCode: null,
       failureMessage: null,
     },
@@ -263,12 +259,7 @@ export async function requestBackgroundCheck(
 export async function refreshBackgroundCheck(localCheckId: string) {
   const check = await findCheck(localCheckId);
   if (!check) throw new AppError(404, "BACKGROUND_CHECK_NOT_FOUND", "검사 기록을 찾을 수 없습니다.");
-  if (check.status === "FAILED") return checkDto(check);
-  const hasDetailedResult =
-    isFinalCheckStatus(check.status)
-      ? check.retentionUntil !== null
-      : false;
-  if (hasDetailedResult) return checkDto(check);
+  if (check.status === "FAILED") return { ...checkDto(check), result: null };
   if (!check.externalCheckId) {
     throw new AppError(409, "CHECK_RESULT_UNKNOWN", "외부 검사 ID가 없어 자동 조회할 수 없습니다.");
   }
@@ -280,12 +271,8 @@ export async function refreshBackgroundCheck(localCheckId: string) {
     );
     if (!response.ok) {
       const errorBody: unknown = await response.json().catch(() => null);
-      const bodyRetryAfter =
-        typeof errorBody === "object" && errorBody !== null && "retryAfter" in errorBody
-          ? errorBody.retryAfter
-          : undefined;
       const retryAfter = response.status === 503
-        ? retryAfterSeconds(response.headers.get("retry-after"), bodyRetryAfter)
+        ? externalRetryAfterSeconds(response.headers.get("retry-after"), errorBody)
         : undefined;
       throw new AppError(
         response.status >= 500 ? 503 : response.status,
@@ -304,7 +291,8 @@ export async function refreshBackgroundCheck(localCheckId: string) {
     )) {
       throw new AppError(502, "EXTERNAL_IDENTITY_MISMATCH", "외부 API 응답의 검사 대상이 요청과 일치하지 않습니다.");
     }
-    return checkDto(await persistExternalResult(check, parsed.data));
+    const persisted = await persistExternalResult(check, parsed.data);
+    return { ...checkDto(persisted), result: transientResultDto(parsed.data) };
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(503, "BACKGROUND_CHECK_UNAVAILABLE", "외부 검사 결과를 조회하지 못했습니다.");

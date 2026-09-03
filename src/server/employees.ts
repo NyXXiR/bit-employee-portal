@@ -1,7 +1,7 @@
 import "server-only";
 
 import { hash } from "bcryptjs";
-import type { Employee, Prisma } from "@prisma/client";
+import { Prisma, type Employee } from "@prisma/client";
 import { db } from "@/server/db";
 import { formatDateOnly, parseDateOnly } from "@/server/dates";
 import { AppError } from "@/server/errors";
@@ -63,15 +63,12 @@ export type ListEmployeesOptions = {
  * 사번은 유일하므로 순서를 확정하는 마지막 기준이 된다.
  */
 function employeeOrderBy(
-  sort: EmployeeSortKey = "employeeId",
+  sort: Exclude<EmployeeSortKey, "name"> = "employeeId",
   direction: SortDirection = "asc",
 ): Prisma.EmployeeOrderByWithRelationInput[] {
   const tiebreaker: Prisma.EmployeeOrderByWithRelationInput = { employeeId: "asc" };
 
   switch (sort) {
-    case "name":
-      // 표시 이름은 성과 이름을 이어 붙인 값이므로 두 컬럼을 차례로 본다.
-      return [{ familyName: direction }, { givenName: direction }, tiebreaker];
     case "dateOfBirth":
       // 생년월일이 없는 직원은 어느 방향으로 정렬하든 뒤로 보낸다.
       // 값이 없는 행이 맨 앞을 차지하면 읽는 흐름이 끊긴다.
@@ -81,6 +78,65 @@ function employeeOrderBy(
     default:
       return [{ employeeId: direction }];
   }
+}
+
+/**
+ * 화면에 표시하는 `familyName + givenName` 자체를 한국어 사전순으로 정렬한다.
+ *
+ * 두 컬럼을 차례로 정렬하면 `남하`와 `남궁가`처럼 성 컬럼 하나가 다른 성의
+ * 접두사인 경우 결합 문자열 순서와 달라진다. DB 기본 collation도 en_US이므로,
+ * 이름 정렬에 한해서 PostgreSQL의 한국어 ICU collation을 명시한다.
+ */
+async function findEmployeesByFullName(
+  tx: Prisma.TransactionClient,
+  options: ListEmployeesOptions,
+  page: number,
+  pageSize: number,
+) {
+  const conditions: Prisma.Sql[] = [];
+  if (options.filter === "active") conditions.push(Prisma.sql`e."status" = 'ACTIVE'`);
+  if (options.filter === "incomplete") conditions.push(Prisma.sql`e."dateOfBirth" IS NULL`);
+
+  const needle = options.query?.trim();
+  if (needle) {
+    const pattern = `%${needle}%`;
+    conditions.push(Prisma.sql`(
+      e."employeeId" ILIKE ${pattern}
+      OR CONCAT(e."familyName", e."givenName") LIKE ${pattern}
+      OR EXISTS (
+        SELECT 1
+        FROM "User" u
+        WHERE u."employeeId" = e."id" AND u."loginId" ILIKE ${pattern}
+      )
+    )`);
+  }
+
+  const whereClause = conditions.length
+    ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+    : Prisma.empty;
+  const direction = options.direction === "desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`;
+  const offset = (page - 1) * pageSize;
+
+  const orderedIds = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT e."id"
+    FROM "Employee" e
+    ${whereClause}
+    ORDER BY CONCAT(e."familyName", e."givenName") COLLATE "ko-KR-x-icu" ${direction},
+             e."employeeId" ASC
+    LIMIT ${pageSize}
+    OFFSET ${offset}
+  `);
+
+  if (orderedIds.length === 0) return [];
+  const employees = await tx.employee.findMany({
+    where: { id: { in: orderedIds.map(({ id }) => id) } },
+    include: { user: { select: { loginId: true } } },
+  });
+  const byId = new Map(employees.map((employee) => [employee.id, employee]));
+  return orderedIds.flatMap(({ id }) => {
+    const employee = byId.get(id);
+    return employee ? [employee] : [];
+  });
 }
 
 export const DEFAULT_EMPLOYEE_PAGE_SIZE = 10;
@@ -152,13 +208,17 @@ export async function listEmployees(options: ListEmployeesOptions = {}) {
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const page = Math.min(Math.max(options.page ?? 1, 1), totalPages);
 
-    const employees = await tx.employee.findMany({
-      where,
-      include: { user: { select: { loginId: true } } },
-      orderBy: employeeOrderBy(options.sort, options.direction),
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
+    const sort = options.sort ?? "employeeId";
+    const employees =
+      sort === "name"
+        ? await findEmployeesByFullName(tx, options, page, pageSize)
+        : await tx.employee.findMany({
+            where,
+            include: { user: { select: { loginId: true } } },
+            orderBy: employeeOrderBy(sort, options.direction),
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+          });
 
     return {
       employees: employees.map(adminEmployeeDto),
@@ -166,7 +226,7 @@ export async function listEmployees(options: ListEmployeesOptions = {}) {
       page,
       pageSize,
       totalPages,
-      sort: options.sort ?? "employeeId",
+      sort,
       direction: options.direction ?? "asc",
       summary: {
         total: summaryTotal,
@@ -393,6 +453,72 @@ export async function provisionEmployeeAccount(
     }
     throw error;
   }
+}
+
+type ResetEmployeePasswordInput = {
+  temporaryPassword: string;
+};
+
+/**
+ * 관리자가 직원의 로그인 자격증명을 복구한다.
+ *
+ * 비밀번호 변경과 기존 세션 폐기를 한 트랜잭션에 묶는다. 기존 세션을 남기면
+ * 관리자가 계정을 복구한 뒤에도 분실된 자격증명으로 열린 세션이 계속 동작할 수 있다.
+ */
+export async function resetEmployeePassword(
+  session: SessionContext,
+  employeeId: string,
+  input: ResetEmployeePasswordInput,
+) {
+  const passwordHash = await hash(input.temporaryPassword, 12);
+
+  return db.$transaction(async (tx) => {
+    const employee = await tx.employee.findUnique({
+      where: { employeeId },
+      include: { user: { select: { id: true, loginId: true } } },
+    });
+    if (!employee) throw new AppError(404, "EMPLOYEE_NOT_FOUND", "직원을 찾을 수 없습니다.");
+    if (employee.status !== "ACTIVE") {
+      throw new AppError(409, "EMPLOYEE_TERMINATED", "퇴사 직원의 비밀번호를 초기화할 수 없습니다.");
+    }
+    if (!employee.user) {
+      throw new AppError(409, "ACCOUNT_NOT_PROVISIONED", "먼저 직원의 로그인 계정을 발급해 주세요.");
+    }
+
+    // 퇴사 처리와 경합하면 직원 행 갱신 조건이 최종 상태를 다시 확인한다.
+    const active = await tx.employee.updateMany({
+      where: { id: employee.id, status: "ACTIVE" },
+      data: { updatedAt: new Date() },
+    });
+    if (active.count !== 1) {
+      throw new AppError(409, "EMPLOYEE_STATE_CHANGED", "직원 상태가 변경되어 초기화하지 못했습니다.");
+    }
+
+    const resetAt = new Date();
+    await tx.user.update({
+      where: { id: employee.user.id },
+      data: { passwordHash },
+    });
+    const revoked = await tx.session.updateMany({
+      where: { userId: employee.user.id, revokedAt: null },
+      data: { revokedAt: resetAt },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorUserId: session.userId,
+        action: "EMPLOYEE_PASSWORD_RESET",
+        targetType: "Employee",
+        targetId: employee.employeeId,
+        metadata: { loginId: employee.user.loginId, revokedSessions: revoked.count },
+      },
+    });
+
+    return {
+      employeeId: employee.employeeId,
+      loginId: employee.user.loginId,
+      sessionsRevoked: revoked.count,
+    };
+  });
 }
 
 export async function terminateEmployee(session: SessionContext, employeeId: string) {

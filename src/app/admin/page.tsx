@@ -77,7 +77,13 @@ function buildHref({
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string; page?: string }>;
+  searchParams: Promise<{
+    filter?: string;
+    q?: string;
+    sort?: string;
+    dir?: string;
+    page?: string;
+  }>;
 }) {
   const session = await getCurrentSession();
   if (!session) redirect(await loginRedirectPath());

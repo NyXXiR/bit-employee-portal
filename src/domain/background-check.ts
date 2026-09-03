@@ -74,6 +74,24 @@ export function retryAfterSeconds(
 }
 
 /**
+ * 외부 503 응답의 재시도 시간을 읽는다.
+ *
+ * Swagger는 표준 `Retry-After` 헤더와 JSON body의 `retryAfter`를 모두 정의하지만,
+ * 실측에서는 헤더 없이 body 값만 반환될 수 있다. 헤더가 유효하면 우선하고,
+ * 없거나 잘못됐으면 실제 응답의 최상위 body 값을 사용한다.
+ */
+export function externalRetryAfterSeconds(
+  headerValue: string | null,
+  errorBody: unknown,
+): number | undefined {
+  const bodyValue =
+    typeof errorBody === "object" && errorBody !== null && "retryAfter" in errorBody
+      ? errorBody.retryAfter
+      : undefined;
+  return retryAfterSeconds(headerValue, bodyValue);
+}
+
+/**
  * 검사 요청 당시의 대상과 현재 직원 프로필을 비교한다.
  *
  * 프로필 변경은 과거 검사 스냅샷을 수정하거나 자동 재검사를 만들지 않는다.

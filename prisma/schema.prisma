@@ -36,6 +36,7 @@ enum AuditAction {
   BACKGROUND_CHECK_REQUESTED
   BACKGROUND_CHECK_ABANDONED
   EMPLOYEE_ACCOUNT_PROVISIONED
+  EMPLOYEE_PASSWORD_RESET
 }
 
 model User {
@@ -109,24 +110,17 @@ model BackgroundCheck {
   familyNameSnapshot   String
   givenNameSnapshot    String
   dateOfBirthSnapshot  DateTime              @db.Date
-  criminalRecord       Boolean?
-  educationVerified    Boolean?
-  employmentVerified   Boolean?
-  creditScore          String?
   externalCreatedAt    DateTime?
   externalCompletedAt  DateTime?
   estimatedSeconds     Int?
   failureCode          String?
   failureMessage       String?
-  retentionUntil       DateTime?
-  resultPurgedAt       DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
   @@unique([employeeRecordId, activeSlot])
   @@index([employeeRecordId, createdAt])
   @@index([status])
-  @@index([retentionUntil])
 }
 
 model AuditLog {
