@@ -1,0 +1,94 @@
+========================================================================
+MEASUREMENT ANALYSIS  measurements/2026-09-03T15-20-07-345Z
+총 관측 1651건
+========================================================================
+
+### GET /background-checks/{checkId} 전체  (n=1000)
+  p50=42.6ms  p95=30011.9ms  p99=30020.8ms  max=30044.2ms  min=19.4ms
+
+### GET 200 응답만  (n=373)
+  p50=437.4ms  p95=26808.7ms  p99=28974.8ms  max=29762.6ms  min=44.6ms
+
+### GET 오류 응답만  (n=627)
+  p50=30.6ms  p95=30013.5ms  p99=30022.1ms  max=30044.2ms  min=19.4ms
+
+### GET /background-checks/{checkId} 상태코드 분포  (n=1000)
+  200                     373   37.30%  95%CI [34.36%, 40.34%]
+  500                     375   37.50%  95%CI [34.55%, 40.54%]
+  503                     252   25.20%  95%CI [22.61%, 27.98%]
+
+### 배치 첫 요청  (n=20)
+  p50=351.5ms  p95=30043.2ms  p99=30044.2ms  max=30044.2ms  min=39ms
+  ! n<100 이므로 p99 는 최댓값과 같다. 추정치가 아니라 관측 상한으로만 읽어야 한다.
+
+### 배치 나머지  (n=980)
+  p50=40.5ms  p95=30011.8ms  p99=30017.2ms  max=30025.7ms  min=19.4ms
+
+========================================================================
+동시 요청 수별 거동
+  동시  1  n= 187  p50=    43.7  p95= 30013.9  p99= 30017.9  max=    30021  오류 69.52% [62.58, 75.67]
+  동시  5  n= 100  p50=   194.8  p95= 30036.2  p99= 30061.9  max=  30079.7  오류 59% [49.2, 68.13]
+  동시 10  n= 100  p50=     178  p95=   30041  p99= 30060.6  max=  30093.6  오류 57% [47.22, 66.27]
+  동시 20  n= 100  p50=   192.3  p95= 30045.2  p99= 30051.7  max=  30061.3  오류 65% [55.25, 73.64]
+
+========================================================================
+같은 employeeId 로 POST 반복
+  POST 6회 -> 서로 다른 checkId 6개 (중복 제거 없음)
+  POST 1   201  status=clear  est=(없음)  CHK-512dae6e-a2c4-4511-85c3-5302d155070f
+  POST 2   201  status=clear  est=(없음)  CHK-1e9c4c8f-eb6d-46d2-84ec-ad46775e7b2f
+  POST 3   201  status=clear  est=(없음)  CHK-3e8bc353-51b7-4434-925e-e3fd3871c0d5
+  POST 4   201  status=clear  est=(없음)  CHK-b2eb9798-fd09-419d-bc9d-326d4bf3dabb
+  POST 5   201  status=clear  est=(없음)  CHK-9633bd94-3505-4870-ac41-1dfa548d369f
+  POST 6   201  status=clear  est=(없음)  CHK-f64b3c6d-1896-4271-80ef-cdc821d67edd
+
+========================================================================
+pending -> 최종 상태  (n=40)
+  POST 즉시 최종상태: 25/40 (62.5% 95%CI [47.03, 75.78])
+  제한시간 내 미완료: 0/40
+  클라이언트 관측(ms): p50=0 p95=43541.1 max=53783.6
+  서버 completedAt-createdAt(ms): n=40 p50=0 p95=43499 max=53740
+  최종 상태 분포: {"clear":40}
+  정렬된 관측값(ms): 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4559.97998046875, 6227, 8264.900146484375, 9207.2099609375, 12054.099853515625, 12275.199951171875, 14687.010009765625, 15281.949951171875, 15955.919921875, 30071.35986328125, 38755.35986328125, 39864.940185546875, 43541.14013671875, 47118, 53783.60009765625
+
+### 폴링 중 GET (동시 40 부하)  (n=109)
+  p50=468.9ms  p95=30013.1ms  p99=30016ms  max=30086.9ms  min=21.9ms
+
+### 폴링 중 GET 상태코드 분포  (n=109)
+  200                      41   37.61%  95%CI [29.09%, 46.98%]
+  500                      40   36.70%  95%CI [28.25%, 46.05%]
+  503                      28   25.69%  95%CI [18.41%, 34.62%]
+
+========================================================================
+503 응답 420건 중 Retry-After 헤더가 있는 것: 0건
+503 응답 중 본문에 retryAfter 필드가 있는 것: 250건
+  503 출처 구분: 본문 retryAfter 있음 250건 / 없음 170건
+  본문 retryAfter 값 분포: {"30":250}
+  Lambda 503 지연 p50=30.6ms  예시본문={"error":"Service Unavailable","message":"The service is currently overloaded. Please retry after the specified time.","retryAfter":30,"statusCode":503}
+  Gateway 503 지연 p50=30012.8ms  예시본문={"message":"Service Unavailable"}
+  Gateway 503 헤더 예시={"apigw-requestid":"DIN2XikBIE0EJnA=","connection":"keep-alive","content-length":"33","content-type":"application/json","date":"Thu, 03 Sep 2026 15:20:38 GMT"}
+  지연 29초 이상 응답: 96건 / latency 표본 1000건 (9.6%)
+  그 중 상태코드: {"200":3,"503":93}
+500 응답 589건, 본문 예시: {"error":"Internal Server Error","message":"Service temporarily unavailable. Please try again later.","statusCode":500}
+
+POST 201 48건 중 estimatedCompletionSeconds 를 실은 응답: 0건
+
+========================================================================
+명세 대조 프로브
+  GET unknown checkId            -> 404  {"error":"Not Found","message":"Background check not found: CHK-does-not-exist-0000","statusCode":404}
+  POST missing fields            -> 400  {"error":"Bad Request","message":"Missing required field: firstName","statusCode":400}
+  POST empty body                -> 400  {"error":"Bad Request","message":"Missing required field: employeeId","statusCode":400}
+  GET list without employeeId    -> 503  {"message":"Service Unavailable"}
+  GET list unknown employeeId    -> 500  {"error":"Internal Server Error","message":"Service temporarily unavailable. Please try again later.","statusC
+  POST future dateOfBirth        -> 201  {"checkId":"CHK-c4b73a55-b0a5-434a-b451-b57bdcd1c986","employeeId":"MEASURE-CONTRACT-DOB","status":"pending","
+  POST malformed dateOfBirth     -> 201  {"checkId":"CHK-380fa9ab-b60c-48f7-b655-dafd6900758d","employeeId":"MEASURE-CONTRACT-DOB2","status":"clear","c
+  DELETE checkId                 -> 404  {"message":"Not Found"}
+
+========================================================================
+정책 산출 근거
+  GET 200 응답 p99 = 28974.8ms, max = 29762.6ms
+  GET 오류율 p = 62.7%
+    시도 1회 모두 실패할 확률 = 62.7%  (성공확률 37.3%)
+    시도 2회 모두 실패할 확률 = 39.3%  (성공확률 60.6871%)
+    시도 3회 모두 실패할 확률 = 24.6%  (성공확률 75.3508%)
+    시도 4회 모두 실패할 확률 = 15.5%  (성공확률 84.545%)
+    시도 5회 모두 실패할 확률 = 9.69%  (성공확률 90.3097%)
