@@ -42,3 +42,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local agent files and separately managed submission materials
+/.agent-work/
+/.claude/
+/AGENTS.md
+/CLAUDE.md
+/AI_LOG.md
+/DECISIONS.md
+/MEASUREMENTS.md
+/docs/
+/measurements/
+/submit/
+/conversations/

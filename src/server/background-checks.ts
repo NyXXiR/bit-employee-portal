@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/server/db";
@@ -9,19 +10,20 @@ import { AppError } from "@/server/errors";
 import type { SessionContext } from "@/server/auth";
 import { activeSlotFor, ACTIVE_CHECK_SLOT, classifyCreateFailure, compareBackgroundCheckSubject, externalIdentityMatches, externalRetryAfterSeconds, idempotencyDecision, toDomainCheckStatus, toExternalBackgroundCheckRequest } from "@/domain/background-check";
 import { mayRequestBackgroundCheck } from "@/domain/employee";
+import { CHECK_POLL_POLICY, isRetryablePollStatus, nextPollAtMs } from "@/lib/polling";
 
 const createdSchema = z.object({
-  checkId: z.string(),
-  employeeId: z.string(),
+  checkId: z.string().min(1),
+  employeeId: z.string().min(1),
   status: z.enum(["pending", "clear", "flagged"]),
-  createdAt: z.string(),
+  createdAt: z.iso.datetime({ offset: true }),
   estimatedCompletionSeconds: z.number().int().optional(),
   message: z.string().optional(),
 });
 
 const resultSchema = z.object({
-  checkId: z.string(),
-  employeeId: z.string(),
+  checkId: z.string().min(1),
+  employeeId: z.string().min(1),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   dateOfBirth: z.string().optional(),
@@ -30,8 +32,8 @@ const resultSchema = z.object({
   educationVerified: z.boolean().nullable().optional(),
   employmentVerified: z.boolean().nullable().optional(),
   creditScore: z.enum(["excellent", "good", "fair", "poor"]).nullable().optional(),
-  createdAt: z.string(),
-  completedAt: z.string().nullable().optional(),
+  createdAt: z.iso.datetime({ offset: true }),
+  completedAt: z.iso.datetime({ offset: true }).nullable().optional(),
 });
 
 type ExternalResult = z.infer<typeof resultSchema>;
@@ -64,6 +66,9 @@ function checkDto(check: Awaited<ReturnType<typeof findCheck>>) {
     requestedName: `${check.familyNameSnapshot}${check.givenNameSnapshot}`,
     dateOfBirth: requestedDateOfBirth,
     profileComparison,
+    nextPollAt: check.nextPollAt?.toISOString() ?? null,
+    pollingStartedAt: (check.externalCreatedAt ?? check.createdAt).toISOString(),
+    pollingStoppedStatus: check.pollingStoppedStatus,
     status: check.status,
     estimatedCompletionSeconds: check.estimatedSeconds,
     failureCode: check.failureCode,
@@ -91,21 +96,28 @@ function findCheck(id: string) {
 async function persistExternalResult(
   check: NonNullable<Awaited<ReturnType<typeof findCheck>>>,
   result: ExternalResult,
+  refreshToken: string,
+  nextPollAt: Date,
 ) {
   const status = toDomainCheckStatus(result.status);
   const completedAt = safeDate(result.completedAt);
-  await db.backgroundCheck.updateMany({
-    where: { id: check.id, status: check.status },
+  const saved = await db.backgroundCheck.updateMany({
+    where: { id: check.id, status: check.status, refreshToken },
     data: {
       externalCheckId: result.checkId,
       status,
       activeSlot: activeSlotFor(status),
-      externalCreatedAt: safeDate(result.createdAt),
+      externalCreatedAt: check.externalCreatedAt ?? safeDate(result.createdAt),
       externalCompletedAt: completedAt,
       failureCode: null,
       failureMessage: null,
+      nextPollAt,
+      pollingStoppedStatus: null,
+      refreshToken: null,
+      refreshLeaseUntil: null,
     },
   });
+  if (saved.count !== 1) throw new AppError(409, "CHECK_STATE_CHANGED", "검사 상태가 이미 변경되었습니다.");
   return db.backgroundCheck.findUniqueOrThrow({ where: { id: check.id }, include: { employee: true } });
 }
 
@@ -247,6 +259,7 @@ export async function requestBackgroundCheck(
         status,
         activeSlot: activeSlotFor(status),
         externalCreatedAt: safeDate(parsed.data.createdAt),
+        nextPollAt: new Date(new Date(parsed.data.createdAt).getTime() + CHECK_POLL_POLICY.firstDelayMs),
         estimatedSeconds: parsed.data.estimatedCompletionSeconds,
     });
     return { check: checkDto(updated), replayed: false };
@@ -261,7 +274,7 @@ export async function requestBackgroundCheck(
   }
 }
 
-export async function refreshBackgroundCheck(localCheckId: string) {
+export async function refreshBackgroundCheck(localCheckId: string, mode: "automatic" | "manual" = "manual") {
   const check = await findCheck(localCheckId);
   if (!check) throw new AppError(404, "BACKGROUND_CHECK_NOT_FOUND", "검사 기록을 찾을 수 없습니다.");
   if (check.status === "FAILED") return { ...checkDto(check), result: null };
@@ -269,24 +282,69 @@ export async function refreshBackgroundCheck(localCheckId: string) {
     throw new AppError(409, "CHECK_RESULT_UNKNOWN", "외부 검사 ID가 없어 자동 조회할 수 없습니다.");
   }
 
+  const now = Date.now();
+  const startedAt = (check.externalCreatedAt ?? check.createdAt).getTime();
+  if (mode === "automatic") {
+    if (now >= startedAt + CHECK_POLL_POLICY.maxPollingDurationMs) {
+      throw new AppError(409, "AUTOMATIC_POLLING_ENDED", "자동 조회 시간이 끝났습니다. 같은 검사 ID로 수동 조회할 수 있습니다.");
+    }
+    if (check.pollingStoppedStatus !== null) {
+      throw new AppError(check.pollingStoppedStatus, check.failureCode ?? "POLLING_STOPPED", check.failureMessage ?? "자동 조회가 중지되었습니다.");
+    }
+  }
+  const firstPollAt = startedAt + CHECK_POLL_POLICY.firstDelayMs;
+  const waitUntil = Math.max(firstPollAt, check.nextPollAt?.getTime() ?? 0);
+  if (now < waitUntil) {
+    throw new AppError(503, "CHECK_POLL_WAIT", "다음 조회 가능 시각까지 기다려 주세요.", Math.ceil((waitUntil - now) / 1000));
+  }
+  if (check.refreshLeaseUntil && now < check.refreshLeaseUntil.getTime()) {
+    throw new AppError(503, "CHECK_POLL_WAIT", "다른 조회가 진행 중입니다.", 2);
+  }
+
+  // DB의 조건부 갱신으로 탭·프로세스 사이에서도 한 요청만 외부 GET을 실행한다.
+  // 만료 가능한 예약과 토큰은 중단된 프로세스의 예약 복구 및 늦은 응답의 덮어쓰기를 막는다.
+  const refreshToken = randomUUID();
+  const refreshLeaseUntil = new Date(now + Math.max(30_000, env.backgroundCheckGetTimeoutMs + 5_000));
+  const reserved = await db.backgroundCheck.updateMany({
+    where: {
+      id: check.id, status: check.status,
+      ...(mode === "automatic" ? { pollingStoppedStatus: null } : {}),
+      AND: [
+        { OR: [{ nextPollAt: null }, { nextPollAt: { lte: new Date(now) } }] },
+        { OR: [{ refreshLeaseUntil: null }, { refreshLeaseUntil: { lte: new Date(now) } }] },
+      ],
+    },
+    data: { refreshToken, refreshLeaseUntil },
+  });
+  if (reserved.count !== 1) {
+    const current = await findCheck(check.id);
+    const dueAt = current?.nextPollAt?.getTime() ?? 0;
+    throw new AppError(503, "CHECK_POLL_WAIT", "다른 조회가 진행 중이거나 대기 중입니다.", Math.max(2, Math.ceil((dueAt - Date.now()) / 1000)));
+  }
+
+  let advice: number | undefined;
   try {
     const response = await fetch(
       `${env.backgroundCheckApiUrl}/background-checks/${encodeURIComponent(check.externalCheckId)}`,
       { signal: AbortSignal.timeout(env.backgroundCheckGetTimeoutMs), cache: "no-store" },
     );
+    advice = externalRetryAfterSeconds(response.headers.get("retry-after"), null);
     if (!response.ok) {
       const errorBody: unknown = await response.json().catch(() => null);
-      const retryAfter = response.status === 503
-        ? externalRetryAfterSeconds(response.headers.get("retry-after"), errorBody)
-        : undefined;
+      advice = externalRetryAfterSeconds(response.headers.get("retry-after"), errorBody);
       throw new AppError(
         response.status >= 500 ? 503 : response.status,
         "BACKGROUND_CHECK_UNAVAILABLE",
         "외부 검사 결과를 조회하지 못했습니다.",
-        retryAfter,
+        advice,
       );
     }
-    const parsed = resultSchema.safeParse(await response.json());
+    const body: unknown = await response.json().catch((error: unknown) => {
+      if (error instanceof SyntaxError) return null;
+      throw error;
+    });
+    advice = externalRetryAfterSeconds(response.headers.get("retry-after"), body);
+    const parsed = resultSchema.safeParse(body);
     if (!parsed.success) {
       throw new AppError(502, "INVALID_EXTERNAL_RESPONSE", "외부 API 응답 형식이 명세와 다릅니다.");
     }
@@ -296,11 +354,22 @@ export async function refreshBackgroundCheck(localCheckId: string) {
     )) {
       throw new AppError(502, "EXTERNAL_IDENTITY_MISMATCH", "외부 API 응답의 검사 대상이 요청과 일치하지 않습니다.");
     }
-    const persisted = await persistExternalResult(check, parsed.data);
+    const persisted = await persistExternalResult(check, parsed.data, refreshToken, new Date(nextPollAtMs(Date.now(), advice)));
     return { ...checkDto(persisted), result: transientResultDto(parsed.data) };
   } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError(503, "BACKGROUND_CHECK_UNAVAILABLE", "외부 검사 결과를 조회하지 못했습니다.");
+    const failure = error instanceof AppError ? error : new AppError(503, "BACKGROUND_CHECK_UNAVAILABLE", "외부 검사 결과를 조회하지 못했습니다.");
+    const retryable = isRetryablePollStatus(failure.statusCode);
+    const nextPollAt = new Date(nextPollAtMs(Date.now(), advice));
+    await db.backgroundCheck.updateMany({
+      where: { id: check.id, refreshToken },
+      data: {
+        nextPollAt, refreshToken: null, refreshLeaseUntil: null,
+        pollingStoppedStatus: retryable ? null : failure.statusCode,
+        failureCode: failure.code, failureMessage: failure.message,
+      },
+    });
+    // 조회 장애는 PENDING을 FAILED로 바꾸거나 활성 자리를 비우지 않는다.
+    throw new AppError(failure.statusCode, failure.code, failure.message, Math.max(2, advice ?? 0));
   }
 }
 

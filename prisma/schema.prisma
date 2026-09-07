@@ -115,6 +115,10 @@ model BackgroundCheck {
   estimatedSeconds     Int?
   failureCode          String?
   failureMessage       String?
+  nextPollAt           DateTime?
+  refreshLeaseUntil    DateTime?
+  refreshToken         String?               @db.Uuid
+  pollingStoppedStatus Int?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 

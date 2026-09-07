@@ -63,14 +63,23 @@ export function toExternalBackgroundCheckRequest(input: {
 export function retryAfterSeconds(
   headerValue: string | null,
   bodyValue: unknown,
+  nowMs = Date.now(),
 ): number | undefined {
-  const candidates = [headerValue, bodyValue];
-  for (const candidate of candidates) {
-    if (candidate === null || candidate === undefined || candidate === "") continue;
-    const parsed = typeof candidate === "number" ? candidate : Number(candidate);
-    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+  const seconds = (value: unknown) => {
+    if (typeof value !== "number" && (typeof value !== "string" || !/^\d+$/.test(value.trim()))) return undefined;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 && nowMs + parsed * 1000 < 8.64e15 ? parsed : undefined;
+  };
+  if (headerValue !== null) {
+    const numeric = seconds(headerValue);
+    if (numeric !== undefined) return numeric;
+    // HTTP-date only: do not let Date.parse interpret '-1' or '1.2' as a date.
+    if (/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(headerValue)) {
+      const date = Date.parse(headerValue);
+      if (Number.isFinite(date)) return Math.max(0, Math.ceil((date - nowMs) / 1000));
+    }
   }
-  return undefined;
+  return seconds(bodyValue);
 }
 
 /**

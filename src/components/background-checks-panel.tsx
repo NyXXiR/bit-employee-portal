@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   EyeIcon,
   EyeOffIcon,
@@ -39,8 +39,8 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import {
   CHECK_POLL_POLICY,
   isRetryablePollStatus,
-  pollDelayMs,
-  shouldRetry,
+  automaticPollDelayMs,
+  nextPollAtMs,
 } from "@/lib/polling";
 
 export type CheckView = {
@@ -55,6 +55,10 @@ export type CheckView = {
   failureMessage: string | null;
   createdAt: string;
   completedAt: string | null;
+  nextPollAt: string | null;
+  pollingStartedAt: string;
+  pollingStoppedStatus: number | null;
+  profileComparison: { matchesCurrentProfile: boolean; changedFields: string[] };
 };
 
 const OPEN_STATUSES = ["REQUESTING", "PENDING", "UNKNOWN"];
@@ -103,10 +107,20 @@ export function BackgroundChecksPanel({
   total: number;
 }) {
   const [requesting, setRequesting] = useState(false);
+  const requestInFlight = useRef(false);
   const [historyTotal, setHistoryTotal] = useState(total);
   const [currentChecks, setCurrentChecks] = useState<ClientCheckView[]>(() =>
     checks.map((check) => clientCheck(check)),
   );
+  const [previousChecks, setPreviousChecks] = useState(checks);
+  if (previousChecks !== checks) {
+    setPreviousChecks(checks);
+    // 프로필 수정 후 서버 props가 갱신되어도 현재 화면에서 받은 상세 결과는 유지한다.
+    setCurrentChecks((current) => current.map((check) => {
+      const updated = checks.find((item) => item.id === check.id);
+      return updated ? { ...check, profileComparison: updated.profileComparison } : check;
+    }));
+  }
 
   const hasOpen = currentChecks.some((check) => OPEN_STATUSES.includes(check.status));
   const canRequest = !requesting && !hasOpen && profileComplete && active;
@@ -136,6 +150,8 @@ export function BackgroundChecksPanel({
   }
 
   async function requestCheck() {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setRequesting(true);
     try {
       const response = await fetch(
@@ -165,6 +181,7 @@ export function BackgroundChecksPanel({
       toast.error("외부 검사 요청 결과를 확인하지 못했습니다. 잠시 후 상태를 확인해 주세요.");
       await reloadLocalChecks();
     } finally {
+      requestInFlight.current = false;
       setRequesting(false);
     }
   }
@@ -180,7 +197,7 @@ export function BackgroundChecksPanel({
         <CardAction>
           <Button size="sm" onClick={requestCheck} disabled={!canRequest}>
             {requesting ? <Loader2Icon className="animate-spin" /> : <ShieldPlusIcon />}
-            {hasOpen ? "진행 중" : "검사 요청"}
+            {hasOpen ? "진행 중" : "새 검사 실행"}
           </Button>
         </CardAction>
       </CardHeader>
@@ -256,6 +273,17 @@ function CheckItem({
         {check.failureMessage ? <Row label="안내">{check.failureMessage}</Row> : null}
       </dl>
 
+      {!check.profileComparison.matchesCurrentProfile ? (
+        <Alert>
+          <TriangleAlertIcon />
+          <AlertTitle>현재 직원 정보와 다른 검사입니다</AlertTitle>
+          <AlertDescription>
+            변경 항목: {check.profileComparison.changedFields.map((field) => ({ familyName: "성", givenName: "이름", dateOfBirth: "생년월일" })[field] ?? field).join(", ")}.
+            이 검사는 위 요청 당시 정보 기준입니다.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {hasResult && check.result ? (
         <TransientResultDisclosure result={check.result} />
       ) : hasResult ? (
@@ -276,8 +304,8 @@ function CheckItem({
 }
 
 /**
- * 완료 결과는 사용자가 명시적으로 요청한 동안에만 컴포넌트 메모리에 둔다.
- * 닫거나 페이지를 벗어나면 버리고, 다시 볼 때 외부 API를 새로 조회한다.
+ * 완료 결과는 현재 화면 메모리에만 둔다. 열기·닫기는 표시만 전환한다.
+ * 페이지 이탈·새로고침 이후에는 완료 상태만 남고 상세 결과를 재조회하지 않는다.
  */
 function TransientResultDisclosure({ result }: { result: TransientCheckResult }) {
   const [open, setOpen] = useState(false);
@@ -324,199 +352,139 @@ function booleanResult(value: boolean | null, yes: string, no: string) {
  * 진행 중인 검사 하나의 재조회를 담당한다.
  * 자동 조회의 현재 상태와 멈춘 이유를 화면에 그대로 드러내는 것이 목적이다.
  */
-function CheckProgress({
-  check,
-  onChange,
-}: {
+function CheckProgress({ check, onChange }: {
   check: ClientCheckView;
   onChange: (check: ClientCheckView) => void;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const [retryAttempt, setRetryAttempt] = useState(0);
-  const [failedCycles, setFailedCycles] = useState(0);
   const [auto, setAuto] = useState(true);
   const [polling, setPolling] = useState(false);
-  const [retryBurstStartedAt, setRetryBurstStartedAt] = useState<number | null>(null);
-  const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
-  const deadlineAt = new Date(check.createdAt).getTime() + CHECK_POLL_POLICY.maxPollingDurationMs;
-  const [deadlineReached, setDeadlineReached] = useState(() => Date.now() >= deadlineAt);
-
-  // 외부 검사 ID가 없으면 조회할 대상 자체가 없다. 재요청으로만 회복된다.
+  // SSR와 첫 브라우저 렌더는 같은 준비 상태로 시작하고, 마운트 후 시간을 표시한다.
+  const [now, setNow] = useState<number | null>(null);
+  const [localNextAt, setLocalNextAt] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
+  const [stopped, setStopped] = useState(check.pollingStoppedStatus !== null);
+  const inFlight = useRef(false);
+  const mounted = useRef(false);
+  const requestController = useRef<AbortController | null>(null);
+  const startedAt = new Date(check.pollingStartedAt).getTime();
+  const deadlineAt = startedAt + CHECK_POLL_POLICY.maxPollingDurationMs;
+  const dueAt = Math.max(startedAt + CHECK_POLL_POLICY.firstDelayMs,
+    check.nextPollAt ? new Date(check.nextPollAt).getTime() : 0, localNextAt);
+  const deadlineReached = now !== null && now >= deadlineAt;
+  const remainingSeconds = now === null ? 0 : Math.max(0, Math.ceil((dueAt - now) / 1000));
   const pollable = check.checkId !== null && check.status !== "UNKNOWN";
-  /*
-   * 서버가 종료를 허용하는 상태와 같게 맞춘다(UNKNOWN, REQUESTING).
-   * 자동 조회가 돌고 있는 동안에는 감춰 둔다 — 곧 스스로 풀릴 수 있는 것을
-   * 사람이 실패로 확정하게 만들 이유가 없다.
-   */
   const abandonable = check.status === "UNKNOWN" || check.status === "REQUESTING";
-  const autoEnabled = pollable && auto && !deadlineReached && !stoppedMessage;
-  const shouldSchedule = autoEnabled && !polling;
+  const autoEnabled = now !== null && pollable && auto && !deadlineReached && !stopped;
 
   useEffect(() => {
-    const remainingMs = deadlineAt - Date.now();
-    const timer = setTimeout(() => setDeadlineReached(true), Math.max(0, remainingMs));
-    return () => clearTimeout(timer);
-  }, [deadlineAt]);
+    mounted.current = true;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => {
+      mounted.current = false;
+      clearInterval(timer);
+      requestController.current?.abort();
+    };
+  }, []);
 
-  async function poll() {
+  const poll = useCallback(async (mode: "automatic" | "manual") => {
+    const requestAt = Date.now();
+    if (inFlight.current || requestAt < dueAt || !pollable) return;
+    if (mode === "automatic" && (requestAt >= deadlineAt || stopped)) return;
+    inFlight.current = true;
     setPolling(true);
-    let ok = false;
-    let retryable = true;
-    let errorMessage = "결과를 조회하지 못했습니다.";
-    let responseBody: RefreshResponse | null = null;
+    const controller = new AbortController();
+    requestController.current = controller;
+    let nextAt = nextPollAtMs(requestAt);
     try {
       const response = await fetch(`/api/admin/background-checks/${check.id}/refresh`, {
-        method: "POST",
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode }), signal: controller.signal,
       });
-      ok = response.ok;
-      responseBody = (await response.json().catch(() => null)) as RefreshResponse | null;
-      if (!ok) {
-        retryable = isRetryablePollStatus(response.status);
-        errorMessage = responseBody?.message ?? errorMessage;
-        if (response.status === 503) {
-          /*
-           * 외부 API가 알려준 대기 시간. 스케줄에는 반영하지 않고 메시지로만 알린다.
-           * 실측(MEASUREMENTS.md 6-c): 503 509건 중 Retry-After 헤더는 0건이고,
-           * 본문 retryAfter는 303건에 값이 전부 상수 30이었다. 오류가 서로 독립이라
-           * 30초를 기다린 뒤의 성공 확률이 0.5초 뒤와 같으므로 따를 근거가 없다.
-           */
-          const advisedSeconds = retryAfterSeconds(
-            response.headers.get("retry-after"),
-            responseBody?.retryAfter,
-          );
-          if (advisedSeconds !== null && advisedSeconds !== undefined) {
-            errorMessage = `${errorMessage} (외부 API 권고 대기 ${advisedSeconds}초 — 따르지 않고 재시도합니다)`;
-          }
-        }
-        // 자동 조회 중에는 토스트를 띄우지 않는다. 실패가 반복되면 화면의
-        // 상태 문구가 대신 알리고, 임계값에 닿으면 스스로 멈춘다.
-        if (!auto || !retryable) toast.error(errorMessage);
+      const body = (await response.json().catch(() => null)) as RefreshResponse | null;
+      if (!mounted.current) return;
+      nextAt = nextPollAtMs(Date.now(), retryAfterSeconds(response.headers.get("retry-after"), body?.retryAfter));
+      if (!response.ok) {
+        const retryable = isRetryablePollStatus(response.status);
+        setStopped(!retryable);
+        setMessage(body?.message ?? "결과를 조회하지 못했습니다.");
+        if (!retryable) setAuto(false);
+      } else if (!body || typeof body.status !== "string" || body.id !== check.id) {
+        setStopped(true);
+        setAuto(false);
+        setMessage("조회 응답 형식을 확인할 수 없어 자동 조회를 중지했습니다.");
+      } else {
+        setStopped(false);
+        setMessage(null);
+        onChange({ ...check, ...body, status: body.status,
+          result: body.result ?? check.result, lifecycleActive: OPEN_STATUSES.includes(body.status) });
       }
     } catch {
-      ok = false;
-      retryable = true;
-    }
-    setAttempt((n) => n + 1);
-    if (ok || !retryable) {
-      setRetryAttempt(0);
-      setRetryBurstStartedAt(null);
-    } else {
-      // 재시도 묶음의 시작 시각. 횟수와 별개로 벽시계 예산을 재기 위해 필요하다 —
-      // 게이트웨이 503은 매 시도마다 타임아웃 전액을 태울 수 있어서 횟수만으로는 상한이 서지 않는다.
-      const burstStartedAt = retryAttempt === 0 ? Date.now() : (retryBurstStartedAt ?? Date.now());
-      const nextRetryAttempt = retryAttempt + 1;
-      if (!shouldRetry(nextRetryAttempt, Date.now() - burstStartedAt)) {
-        // 시도 4회 또는 5.5초 예산을 소진했다. 검사 전체를 끝내지 않고
-        // 이 회차만 실패로 기록한 뒤 다음 정규 폴링 주기로 돌아간다.
-        setRetryAttempt(0);
-        setRetryBurstStartedAt(null);
-        setFailedCycles((n) => n + 1);
-      } else {
-        setRetryAttempt(nextRetryAttempt);
-        setRetryBurstStartedAt(burstStartedAt);
+      if (mounted.current) {
+        nextAt = nextPollAtMs(Date.now());
+        setMessage("조회 응답을 받지 못했습니다. 같은 검사 ID로 다시 조회합니다.");
+      }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) {
+        setLocalNextAt(nextAt);
+        setNow(Date.now());
+        setAttempt((count) => count + 1);
+        setPolling(false);
       }
     }
-    setStoppedMessage(ok || retryable ? null : errorMessage);
-    if (!ok && !retryable) setAuto(false);
-    setPolling(false);
-    if (ok && responseBody) {
-      const nextStatus = typeof responseBody.status === "string" ? responseBody.status : check.status;
-      onChange({
-        ...check,
-        ...responseBody,
-        status: nextStatus,
-        result: responseBody.result ?? check.result,
-        lifecycleActive: OPEN_STATUSES.includes(nextStatus),
-      });
-    }
-  }
+  }, [check, deadlineAt, dueAt, onChange, pollable, stopped]);
 
   useEffect(() => {
-    if (!shouldSchedule) return;
-    const timer = setTimeout(
-      poll,
-      pollDelayMs(
-        attempt === 0
-          ? 0
-          : Math.max(0, Date.now() - new Date(check.createdAt).getTime()),
-        retryAttempt,
-      ),
-    );
+    if (!autoEnabled || polling) return;
+    const delay = automaticPollDelayMs(Date.now(), startedAt, dueAt);
+    if (delay === null) return;
+    // 절대 시각으로 예약하므로 렌더·중지/재개가 대기시간을 초기화하지 않는다.
+    const timer = setTimeout(() => void poll("automatic"), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
-    // poll은 매 렌더 새로 만들어지지만 타이머는 아래 값이 바뀔 때만 다시 건다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldSchedule, attempt, check.id, retryAttempt, polling]);
+  }, [autoEnabled, polling, startedAt, dueAt, poll]);
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-muted/60 px-3 py-2 text-xs">
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        {autoEnabled ? (
-          <>
-            <Loader2Icon className="size-3.5 animate-spin" />
-            자동 조회 중 · 총 {attempt}회
-            {retryAttempt > 0
-              ? ` · 일시 오류 재시도 ${retryAttempt}/${CHECK_POLL_POLICY.maxAttempts - 1}`
-              : failedCycles > 0
-                ? ` · 실패 회차 ${failedCycles}회`
-                : ""}
-          </>
+    <div className="grid gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs">
+      <span className="flex items-center gap-1.5 text-muted-foreground" aria-live="polite">
+        {now === null ? (
+          <>조회 상태를 확인하고 있습니다</>
         ) : check.status === "UNKNOWN" ? (
-          // 이전 문구는 "다시 요청해 주세요"였는데, 이 검사가 활성 자리를 잡고
-          // 있어서 실제로는 다시 요청할 수 없었다. 할 수 없는 일을 안내하지 않는다.
-          <>외부 응답을 받지 못해 검사 생성 여부를 확인할 수 없습니다 · 종료해야 새 검사를 요청할 수 있습니다</>
+          <>검사 생성 여부를 확인할 수 없습니다 · 사유를 남겨 종료한 뒤 새 검사를 실행할 수 있습니다</>
         ) : !pollable ? (
           <>외부 검사 ID를 아직 받지 못했습니다</>
-        ) : stoppedMessage ? (
-          <>{stoppedMessage} · 자동 재시도 대상이 아니므로 중지</>
+        ) : stopped ? (
+          <>{message ?? check.failureMessage ?? "응답을 확인해 주세요."} · 자동 조회 중지</>
         ) : deadlineReached ? (
-          <>180초 동안 최종 결과를 받지 못했습니다 · 수동 조회가 필요합니다</>
+          <>3분의 자동 조회가 끝났습니다 · 검사 실패를 뜻하지 않으며 같은 ID로 수동 조회할 수 있습니다</>
+        ) : autoEnabled ? (
+          <><Loader2Icon className="size-3.5 animate-spin" />자동 조회 중 · 이 화면에서 {attempt}회 조회</>
         ) : (
           <>자동 조회가 꺼져 있습니다</>
         )}
       </span>
-
-      {/* Swagger가 폴링 주기의 근거로 지목한 값. 화면에서도 근거가 보이게 둔다. */}
-      {check.estimatedCompletionSeconds && attempt === 0 ? (
-        <span className="text-muted-foreground">
-          예상 완료 약 {check.estimatedCompletionSeconds}초
-        </span>
+      {message && !stopped ? <p className="text-muted-foreground">{message}</p> : null}
+      {pollable && remainingSeconds > 0 && !polling ? (
+        <p className="text-muted-foreground">다음 조회까지 {remainingSeconds}초 대기 · 서버 권고 대기시간을 포함합니다</p>
       ) : null}
-
+      {check.estimatedCompletionSeconds && attempt === 0 ? (
+        <span className="text-muted-foreground">예상 완료 약 {check.estimatedCompletionSeconds}초</span>
+      ) : null}
       <span className="ml-auto flex items-center gap-1.5">
         {abandonable && !autoEnabled ? (
-          <AbandonCheckDialog
-            checkId={check.id}
-            externalCheckId={check.checkId}
-            onAbandoned={(updated) =>
-              onChange({
-                ...check,
-                ...updated,
-                result: null,
-                lifecycleActive: false,
-              })
-            }
-          />
+          <AbandonCheckDialog checkId={check.id} externalCheckId={check.checkId}
+            onAbandoned={(updated) => onChange({ ...check, ...updated, result: null, lifecycleActive: false })} />
         ) : null}
-
-        {pollable ? (
-          <>
-            {!deadlineReached && !stoppedMessage ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setAuto((enabled) => !enabled)}
-              >
-                {autoEnabled ? <PauseIcon /> : <PlayIcon />}
-                {autoEnabled ? "중지" : "자동 조회"}
-              </Button>
-            ) : null}
-
-            <Button variant="outline" size="xs" disabled={polling} onClick={poll}>
-              {polling ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-              지금 조회
+        {pollable ? <>
+          {!deadlineReached && !stopped ? (
+            <Button variant="ghost" size="xs" onClick={() => setAuto((enabled) => !enabled)}>
+              {autoEnabled ? <PauseIcon /> : <PlayIcon />}{autoEnabled ? "중지" : "자동 조회"}
             </Button>
-          </>
-        ) : null}
+          ) : null}
+          <Button variant="outline" size="xs" disabled={now === null || polling || remainingSeconds > 0} onClick={() => void poll("manual")}>
+            {polling ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}같은 검사 조회
+          </Button>
+        </> : null}
       </span>
     </div>
   );

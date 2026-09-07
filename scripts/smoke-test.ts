@@ -167,6 +167,22 @@ async function main() {
   assert(comparedCheck?.profileComparison?.matchesCurrentProfile === false && comparedCheck.profileComparison.changedFields.includes("givenName"),"Check snapshot and current profile difference was not reported");
   const persistedSnapshot = await db.backgroundCheck.findUniqueOrThrow({where:{id:pendingCheck.id}});
   assert(persistedSnapshot.givenNameSnapshot === "직원수정","Profile update rewrote the historical check snapshot");
+  // 저장된 대기 제한과 자동 종료를 실제 HTTP 경계에서 확인한다. 외부 API는 호출하지 않는다.
+  await db.backgroundCheck.update({where:{id:pendingCheck.id},data:{
+    externalCreatedAt:new Date(Date.now()-181_000),nextPollAt:new Date(Date.now()+30_000),
+  }});
+  const refreshPath = `/api/admin/background-checks/${pendingCheck.id}/refresh`;
+  const refreshInit = (mode:string) => ({method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode})});
+  const automaticEnded = await request(refreshPath,refreshInit("automatic"),adminCookie);
+  assert(automaticEnded.response.status === 409 && automaticEnded.body?.code === "AUTOMATIC_POLLING_ENDED","Automatic polling continued beyond 180s");
+  const manualWait = await request(refreshPath,refreshInit("manual"),adminCookie);
+  assert(manualWait.response.status === 503 && manualWait.body?.code === "CHECK_POLL_WAIT" && Number(manualWait.response.headers.get("retry-after")) > 0,"Manual refresh bypassed persisted wait");
+  const invalidMode = await request(refreshPath,refreshInit("invalid"),adminCookie);
+  assert(invalidMode.response.status === 400,"Invalid refresh mode was accepted");
+  const employeeRefreshDenied = await request(refreshPath,refreshInit("manual"),employeeCookie);
+  assert(employeeRefreshDenied.response.status === 403,"Employee could refresh a Background Check");
+  const afterDeadline = await db.backgroundCheck.findUniqueOrThrow({where:{id:pendingCheck.id}});
+  assert(afterDeadline.status === "PENDING" && afterDeadline.externalCheckId === pendingCheck.externalCheckId,"Automatic cutoff changed the check status or ID");
   const pendingAbandon = await request(`/api/admin/background-checks/${pendingCheck.id}/abandon`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({reason:"외부 서비스 이력 확인 후 종료합니다."})},adminCookie);
   assert(pendingAbandon.response.status === 409 && pendingAbandon.body?.code === "CHECK_NOT_UNCERTAIN","A pending check could be abandoned");
   await db.backgroundCheck.update({where:{id:pendingCheck.id},data:{status:"UNKNOWN"}});

@@ -10,6 +10,7 @@ const TIME_ZONE = "Asia/Seoul";
 const dateTimeFormat = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
   timeStyle: "short",
+  hourCycle: "h23",
   timeZone: TIME_ZONE,
 });
 

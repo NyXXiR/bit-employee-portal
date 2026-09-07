@@ -138,7 +138,7 @@ export default async function EmployeeDetailPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="checks" className="pt-6">
+        <TabsContent value="checks" forceMount className="pt-6 data-[state=inactive]:hidden">
           <BackgroundChecksPanel
             employeeId={employee.employeeId}
             profileComplete={employee.profileComplete}
