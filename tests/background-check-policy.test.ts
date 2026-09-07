@@ -21,7 +21,10 @@ test("refresh policy persists across callers without storing result details", as
   let calls = 0;
   const mockedFetch = t.mock.method(globalThis, "fetch", async () => { calls++; return response(); });
   try {
-    await t.test("simultaneous callers share one external GET", async () => {
+    await t.test("simultaneous callers share one external GET", async (subtest) => {
+      // DB 응답이 느려도 2초 대기 경계를 넘지 않도록 정책 시각을 고정한다.
+      const now = Date.now();
+      subtest.mock.method(Date, "now", () => now);
       const results = await Promise.allSettled([refreshBackgroundCheck(check.id), refreshBackgroundCheck(check.id)]);
       assert.equal(calls, 1);
       assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);

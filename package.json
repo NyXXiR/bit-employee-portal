@@ -6,13 +6,17 @@
     "node": ">=20.9.0 <21"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "node scripts/bootstrap.mjs --dev",
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "node scripts/bootstrap.mjs",
+    "start:local": "node scripts/bootstrap.mjs --start",
+    "docker:up": "docker compose up --build -d --wait",
+    "docker:down": "docker compose down",
     "test": "node scripts/run-tests.mjs",
     "test:smoke": "node --env-file=.env --import tsx scripts/smoke-test.ts"
   },

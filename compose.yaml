@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-portal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portal-local-db-password}
+      POSTGRES_DB: ${POSTGRES_DB:-employee_portal}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-portal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portal-local-db-password}
+      POSTGRES_DB: ${POSTGRES_DB:-employee_portal}
+      SESSION_SECRET: ${SESSION_SECRET:-local-review-session-secret-2026-change-for-shared-use}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+      APP_ORIGIN: http://localhost:${APP_PORT:-3000}
+      BACKGROUND_CHECK_API_URL: ${BACKGROUND_CHECK_API_URL:-https://54capvm12g.execute-api.ap-northeast-2.amazonaws.com}
+      BACKGROUND_CHECK_GET_TIMEOUT_MS: ${BACKGROUND_CHECK_GET_TIMEOUT_MS:-1000}
+      BACKGROUND_CHECK_POST_TIMEOUT_MS: ${BACKGROUND_CHECK_POST_TIMEOUT_MS:-2000}
+      SEED_ADMIN_LOGIN_ID: ${SEED_ADMIN_LOGIN_ID:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Portal-admin-2026!}
+      SEED_EMPLOYEE_LOGIN_ID: ${SEED_EMPLOYEE_LOGIN_ID:-employee}
+      SEED_EMPLOYEE_PASSWORD: ${SEED_EMPLOYEE_PASSWORD:-Portal-employee-2026!}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+volumes:
+  postgres_data:
