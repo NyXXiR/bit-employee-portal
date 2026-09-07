@@ -11,8 +11,9 @@ function requiredSeedValue(name: string): string {
 
 function requiredSeedPassword(name: string): string {
   const value = requiredSeedValue(name);
-  if (value.length < 10 || value === "replace-me" || value.startsWith("change-")) {
-    throw new Error(`${name} must be a non-placeholder password with at least 10 characters`);
+  // 제출용 로컬 리뷰 계정의 초기 비밀번호를 허용한다.
+  if (value.length < 5 || value === "replace-me" || value.startsWith("change-")) {
+    throw new Error(`${name} must be a non-placeholder password with at least 5 characters`);
   }
   return value;
 }

@@ -56,6 +56,7 @@ export function EmployeeSearch({
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
+        maxLength={80}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="이름 또는 사번"

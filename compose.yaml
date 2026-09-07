@@ -34,9 +34,9 @@ services:
       BACKGROUND_CHECK_GET_TIMEOUT_MS: ${BACKGROUND_CHECK_GET_TIMEOUT_MS:-1000}
       BACKGROUND_CHECK_POST_TIMEOUT_MS: ${BACKGROUND_CHECK_POST_TIMEOUT_MS:-2000}
       SEED_ADMIN_LOGIN_ID: ${SEED_ADMIN_LOGIN_ID:-admin}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Portal-admin-2026!}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-12321}
       SEED_EMPLOYEE_LOGIN_ID: ${SEED_EMPLOYEE_LOGIN_ID:-employee}
-      SEED_EMPLOYEE_PASSWORD: ${SEED_EMPLOYEE_PASSWORD:-Portal-employee-2026!}
+      SEED_EMPLOYEE_PASSWORD: ${SEED_EMPLOYEE_PASSWORD:-1232123}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s

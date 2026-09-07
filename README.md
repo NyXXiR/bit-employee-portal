@@ -16,8 +16,8 @@ docker compose up --build -d --wait
 
 | 구분 | 아이디 | 비밀번호 |
 | --- | --- | --- |
-| 관리자 | `admin` | `Portal-admin-2026!` |
-| 직원 | `employee` | `Portal-employee-2026!` |
+| 관리자 | `admin` | `12321` |
+| 직원 | `employee` | `1232123` |
 
 위 값은 로컬 리뷰용 기본 계정입니다. 앱과 DB 포트는 로컬 컴퓨터에서만 접근할 수 있도록 설정했습니다.
 

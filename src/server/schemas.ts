@@ -1,48 +1,7 @@
 import { z } from "zod";
+export { loginSchema, updateProfileSchema, createEmployeeSchema, provisionEmployeeAccountSchema, resetEmployeePasswordSchema, abandonCheckSchema } from "@/lib/form-validation";
 
-const name = z.string().trim().min(1).max(40);
-const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식이어야 합니다.");
-
-export const loginSchema = z.object({
-  loginId: z.string().trim().min(1).max(80),
-  password: z.string().min(1).max(200),
-});
-
-export const updateProfileSchema = z
-  .object({
-    familyName: name.optional(),
-    givenName: name.optional(),
-    dateOfBirth: dateOnly.nullable().optional(),
-  })
-  .refine((value) => Object.values(value).some((field) => field !== undefined), {
-    message: "수정할 필드가 없습니다.",
-  });
-
-export const createEmployeeSchema = z.object({
-  familyName: name,
-  givenName: name,
-  dateOfBirth: dateOnly.nullable(),
-  loginId: z.string().trim().min(3).max(80),
-  initialPassword: z.string().min(10).max(200),
-});
-
-export const provisionEmployeeAccountSchema = z.object({
-  loginId: z.string().trim().min(3).max(80),
-  initialPassword: z.string().min(10).max(200),
-});
-
-export const resetEmployeePasswordSchema = z.object({
-  temporaryPassword: z.string().min(10).max(200),
-});
-
-export const createCheckSchema = z.object({
-  idempotencyKey: z.uuid(),
-});
-
-export const abandonCheckSchema = z.object({
-  reason:z.string().trim().min(10,"확인 근거를 10자 이상 입력해 주세요.").max(500),
-});
-
+export const createCheckSchema = z.object({ idempotencyKey: z.uuid() });
 export const listProfileChangesQuerySchema = z.object({
   cursor: z.string().trim().min(1).max(100).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),

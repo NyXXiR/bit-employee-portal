@@ -18,6 +18,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormValidation } from "@/components/use-form-validation";
+import { abandonCheckSchema } from "@/lib/form-validation";
 
 /** 서버의 abandonCheckSchema와 같은 값. 제출 전에 화면에서 먼저 알린다. */
 const MIN_REASON = 10;
@@ -52,36 +54,45 @@ export function AbandonCheckDialog({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const validation = useFormValidation(abandonCheckSchema);
 
   const tooShort = reason.trim().length < MIN_REASON;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
     setError("");
+    const input = validation.validate({ reason }, event.currentTarget);
+    if (!input) return;
+    setPending(true);
 
-    const response = await fetch(`/api/admin/background-checks/${checkId}/abandon`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ reason: reason.trim() }),
-    });
-    const body = await response.json().catch(() => null);
-    setPending(false);
+    try {
+      const response = await fetch(`/api/admin/background-checks/${checkId}/abandon`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await response.json().catch(() => null);
 
-    if (!response.ok) {
-      setError(body?.message ?? "검사를 종료하지 못했습니다.");
-      return;
-    }
+      if (!response.ok) {
+        setError(body?.message ?? "검사를 종료하지 못했습니다.");
+        return;
+      }
 
-    setOpen(false);
-    setReason("");
-    toast.success("검사를 종료했습니다. 이제 새 검사를 요청할 수 있습니다.");
-    if (onAbandoned) onAbandoned(body);
-    else router.refresh();
+      setOpen(false);
+      setReason("");
+      toast.success("검사를 종료했습니다. 이제 새 검사를 요청할 수 있습니다.");
+      if (onAbandoned) onAbandoned(body);
+      else router.refresh();
+    } catch { setError("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+    finally { setPending(false); }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (pending) return;
+      setOpen(nextOpen);
+      if (!nextOpen) { setError(""); validation.clear(); }
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="xs">
           <CircleSlashIcon />
@@ -113,11 +124,14 @@ export function AbandonCheckDialog({
           <FormField
             id="abandonReason"
             label="종료 근거"
+            error={validation.errors.reason}
             required
             hint={`${MIN_REASON}자 이상 · 감사 기록에 그대로 남습니다`}
           >
             <Textarea
               id="abandonReason"
+              name="reason"
+              {...validation.fieldProps("reason", "abandonReason")}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               maxLength={MAX_REASON}

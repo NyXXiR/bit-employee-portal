@@ -308,7 +308,7 @@ function CheckItem({
  * 페이지 이탈·새로고침 이후에는 완료 상태만 남고 상세 결과를 재조회하지 않는다.
  */
 function TransientResultDisclosure({ result }: { result: TransientCheckResult }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   if (!open) {
     return (

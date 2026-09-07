@@ -9,6 +9,8 @@ import { FormError } from "@/components/form-error";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useFormValidation } from "@/components/use-form-validation";
+import { updateProfileSchema, todayInSeoul } from "@/lib/form-validation";
 
 export type EmployeeView = {
   employeeId: string;
@@ -32,6 +34,7 @@ export function ProfileForm({
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const validation = useFormValidation(updateProfileSchema);
 
   // 퇴사한 직원의 정보는 읽기 전용이다. 서버에서도 동일하게 거부하며,
   // 여기서의 disabled는 권한 통제가 아니라 잘못된 시도를 줄이는 보조 수단이다.
@@ -39,30 +42,33 @@ export function ProfileForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
     setError("");
     const form = new FormData(event.currentTarget);
     const dateOfBirth = String(form.get("dateOfBirth") ?? "");
+    const input = validation.validate({
+      familyName: form.get("familyName"), givenName: form.get("givenName"),
+      dateOfBirth: dateOfBirth || (admin ? null : undefined),
+    }, event.currentTarget);
+    if (!input) return;
+    setPending(true);
     const endpoint = admin
       ? `/api/admin/employees/${encodeURIComponent(employee.employeeId)}`
       : "/api/portal/profile";
-    const response = await fetch(endpoint, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        familyName: form.get("familyName"),
-        givenName: form.get("givenName"),
-        dateOfBirth: dateOfBirth || (admin ? null : undefined),
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      setError(body.message ?? "수정하지 못했습니다.");
-    } else {
-      toast.success("직원 정보를 저장했습니다.");
-      router.refresh();
-    }
-    setPending(false);
+    try {
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.message ?? "수정하지 못했습니다.");
+      } else {
+        toast.success("직원 정보를 저장했습니다.");
+        router.refresh();
+      }
+    } catch { setError("서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+    finally { setPending(false); }
   }
 
   return (
@@ -90,20 +96,24 @@ export function ProfileForm({
         * 없는 칸의 입력 상자가 서로 다른 높이에 놓인다.
         */}
       <div className="grid items-start gap-4 sm:grid-cols-2">
-        <FormField id="familyName" label="성" required hint="복성은 두 글자 그대로 입력합니다.">
+        <FormField id="familyName" label="성" required hint="복성은 두 글자 그대로 입력합니다." error={validation.errors.familyName}>
           <Input
             id="familyName"
             name="familyName"
+            maxLength={40}
+            {...validation.fieldProps("familyName")}
             defaultValue={employee.familyName}
             required
             disabled={readOnly}
           />
         </FormField>
 
-        <FormField id="givenName" label="이름" required>
+        <FormField id="givenName" label="이름" required error={validation.errors.givenName}>
           <Input
             id="givenName"
             name="givenName"
+            maxLength={40}
+            {...validation.fieldProps("givenName")}
             defaultValue={employee.givenName}
             required
             disabled={readOnly}
@@ -113,6 +123,7 @@ export function ProfileForm({
         <FormField
           id="dateOfBirth"
           label="생년월일"
+          error={validation.errors.dateOfBirth}
           required={!admin}
           hint="Background Check 요청에 반드시 필요합니다."
         >
@@ -120,6 +131,9 @@ export function ProfileForm({
             id="dateOfBirth"
             name="dateOfBirth"
             type="date"
+            min="0001-01-01"
+            max={todayInSeoul()}
+            {...validation.fieldProps("dateOfBirth")}
             defaultValue={employee.dateOfBirth ?? ""}
             required={!admin}
             disabled={readOnly}
@@ -127,7 +141,7 @@ export function ProfileForm({
         </FormField>
       </div>
 
-      <FormError message={error} />
+      <FormError message={error || validation.errors._form} />
 
       {readOnly ? null : (
         <div className="flex justify-end">

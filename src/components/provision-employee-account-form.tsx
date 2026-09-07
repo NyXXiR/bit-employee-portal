@@ -19,6 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useFormValidation } from "@/components/use-form-validation";
+import { provisionEmployeeAccountSchema } from "@/lib/form-validation";
 
 export function ProvisionEmployeeAccountDialog({
   employeeId,
@@ -31,21 +33,21 @@ export function ProvisionEmployeeAccountDialog({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const validation = useFormValidation(provisionEmployeeAccountSchema);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
     setError("");
 
     const form = new FormData(event.currentTarget);
+    const input = validation.validate({ loginId: form.get("loginId"), initialPassword: form.get("initialPassword") }, event.currentTarget);
+    if (!input) return;
+    setPending(true);
     try {
       const response = await fetch(`/api/admin/employees/${employeeId}/account`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          loginId: form.get("loginId"),
-          initialPassword: form.get("initialPassword"),
-        }),
+        body: JSON.stringify(input),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -69,7 +71,7 @@ export function ProvisionEmployeeAccountDialog({
       onOpenChange={(nextOpen) => {
         if (pending) return;
         setOpen(nextOpen);
-        if (!nextOpen) setError("");
+        if (!nextOpen) { setError(""); validation.clear(); }
       }}
     >
       <div className="mt-6 flex items-center justify-between gap-4 border-t pt-6">
@@ -98,10 +100,11 @@ export function ProvisionEmployeeAccountDialog({
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField id="provisionLoginId" label="로그인 아이디" required hint="3자 이상">
+            <FormField id="provisionLoginId" label="로그인 아이디" required hint="3~80자 · 공백 제외" error={validation.errors.loginId}>
               <Input
                 id="provisionLoginId"
                 name="loginId"
+                {...validation.fieldProps("loginId", "provisionLoginId")}
                 minLength={3}
                 maxLength={80}
                 autoComplete="off"
@@ -111,12 +114,14 @@ export function ProvisionEmployeeAccountDialog({
             <FormField
               id="provisionPassword"
               label="초기 비밀번호"
+              error={validation.errors.initialPassword}
               required
               hint="10자 이상"
             >
               <PasswordInput
                 id="provisionPassword"
                 name="initialPassword"
+                {...validation.fieldProps("initialPassword", "provisionPassword")}
                 minLength={10}
                 maxLength={200}
                 autoComplete="new-password"

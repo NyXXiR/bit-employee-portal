@@ -9,6 +9,8 @@ import { FormError } from "@/components/form-error";
 import { FormField } from "@/components/form-field";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
+import { useFormValidation } from "@/components/use-form-validation";
+import { resetEmployeePasswordSchema } from "@/lib/form-validation";
 import {
   Dialog,
   DialogContent,
@@ -32,13 +34,16 @@ export function ResetEmployeePasswordDialog({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const validation = useFormValidation(resetEmployeePasswordSchema);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const target = event.currentTarget;
     const form = new FormData(target);
-    setPending(true);
     setError("");
+    const input = validation.validate({ temporaryPassword: form.get("temporaryPassword") }, target);
+    if (!input) return;
+    setPending(true);
 
     try {
       const response = await fetch(
@@ -46,7 +51,7 @@ export function ResetEmployeePasswordDialog({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ temporaryPassword: form.get("temporaryPassword") }),
+          body: JSON.stringify(input),
         },
       );
       const body = await response.json().catch(() => null);
@@ -74,7 +79,7 @@ export function ResetEmployeePasswordDialog({
       onOpenChange={(nextOpen) => {
         if (pending) return;
         setOpen(nextOpen);
-        if (!nextOpen) setError("");
+        if (!nextOpen) { setError(""); validation.clear(); }
       }}
     >
       <div className="mt-6 flex items-center justify-between gap-4 border-t pt-6">
@@ -105,12 +110,14 @@ export function ResetEmployeePasswordDialog({
           <FormField
             id="temporaryPassword"
             label="새 임시 비밀번호"
+            error={validation.errors.temporaryPassword}
             required
             hint="10자 이상 · 설정 후에는 다시 표시되지 않습니다."
           >
             <PasswordInput
               id="temporaryPassword"
               name="temporaryPassword"
+              {...validation.fieldProps("temporaryPassword")}
               minLength={10}
               maxLength={200}
               autoComplete="new-password"
